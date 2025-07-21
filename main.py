@@ -12,21 +12,7 @@ api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
-    log("❌ API açarları tapılmayıb.")
-    exit(1)
-
-try:
-    exchange = ccxt.gate({
-        'apiKey': api_key,
-        'secret': api_secret,
-        'enableRateLimit': True,
-        'options': {
-            'defaultType': 'perpetual'
-        }
-    })
-    log("✅ Exchange quruldu.")
-except Exception as e:
-    log(f"❌ Exchange xətası: {e}")
+    log("❌ API tapılmadı!")
     exit(1)
 
 symbol = 'TON/USDT:USDT'
@@ -34,6 +20,18 @@ leverage = 3
 initial_balance = 1000
 min_amount = 0.1
 active_position = None
+
+try:
+    exchange = ccxt.gate({
+        'apiKey': api_key,
+        'secret': api_secret,
+        'enableRateLimit': True,
+        'options': {'defaultType': 'perpetual'}
+    })
+    log("✅ Exchange yaradıldı")
+except Exception as e:
+    log(f"❌ Exchange xətası: {e}")
+    exit(1)
 
 def calculate_rsi(closes, period=14):
     deltas = np.diff(closes)
@@ -55,81 +53,73 @@ def analyze_technicals(candles):
     if len(closes) < 21:
         return "hold"
     rsi = calculate_rsi(closes)
-    ema_short = calculate_ema(closes, 9)
-    ema_long = calculate_ema(closes, 21)
-    log(f"📈 RSI: {rsi}, EMA9: {ema_short}, EMA21: {ema_long}")
-    if rsi < 50 and ema_short > ema_long:
+    ema9 = calculate_ema(closes, 9)
+    ema21 = calculate_ema(closes, 21)
+    log(f"📈 RSI: {rsi}, EMA9: {ema9}, EMA21: {ema21}")
+    if rsi < 50 and ema9 > ema21:
         return "buy"
-    elif rsi > 50 and ema_short < ema_long:
+    elif rsi > 50 and ema9 < ema21:
         return "sell"
     return "hold"
 
-def place_order(type, amount, price):
+def place_order(side, amount, price):
     try:
-        if amount < 0.1:
-            amount = 0.1
-        if type == "buy":
+        amount = max(amount, 0.1)
+        if side == "buy":
             exchange.create_market_buy_order(symbol, amount)
         else:
             exchange.create_market_sell_order(symbol, amount)
-        log(f"✅ ORDER: {type.upper()} {amount} TON at {price}")
+        log(f"✅ ORDER: {side.upper()} {amount} TON at {price}")
         return True
     except Exception as e:
-        log(f"❌ ORDER ERROR: {e}")
+        log(f"❌ ORDER error: {e}")
         return False
-
-def calculate_pnl(entry_price, exit_price, amount, side):
-    if side == "long":
-        return round((exit_price - entry_price) * amount, 2)
-    else:
-        return round((entry_price - exit_price) * amount, 2)
 
 def run_bot():
     global active_position
-
-    log("🚀 TON DOMINATOR AI PRO başladı.")
-
+    log("🚀 TON DOMINATOR AI PRO başladı")
     try:
         exchange.set_leverage(leverage, symbol)
-        log(f"✅ Leverage: {leverage}x")
+        log(f"✅ Leverage təyin olundu: {leverage}x")
     except Exception as e:
-        log(f"⚠️ Leverage təyini xətası: {e}")
+        log(f"❌ Leverage xətası: {e}")
 
     while True:
         try:
             ticker = exchange.fetch_ticker(symbol)
-            price = ticker['last']
-            candles = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=100)
+            price = ticker.get("last")
+            if not price:
+                log("❌ TON qiyməti tapılmadı!")
+                continue
 
+            candles = exchange.fetch_ohlcv(symbol, '1m', limit=100)
             strategy = analyze_technicals(candles)
-
             balance = exchange.fetch_balance()
-            usdt_balance = balance['total'].get('USDT', initial_balance)
-            risk_usdt = usdt_balance * 0.02
-            amount = round(max(risk_usdt / price, min_amount), 2)
+            usdt = balance['total'].get('USDT', initial_balance)
+            amount = round(max(usdt * 0.02 / price, 0.1), 2)
 
-            log(f"📊 Strategy: {strategy} | Price: {price} | Amount: {amount} | Balance: {usdt_balance}")
+            log(f"📊 STRATEGY: {strategy} | PRICE: {price} | AMOUNT: {amount} | BAL: {usdt}")
 
             if strategy == "buy" and not active_position:
                 if place_order("buy", amount, price):
                     active_position = {"side": "long", "entry": price, "amount": amount}
-
             elif strategy == "sell" and not active_position:
                 if place_order("sell", amount, price):
                     active_position = {"side": "short", "entry": price, "amount": amount}
-
             elif active_position:
-                side = active_position['side']
                 entry = active_position['entry']
+                side = active_position['side']
                 amt = active_position['amount']
 
-                tp_hit = price >= entry * 1.005 if side == "long" else price <= entry * 0.995
-                sl_hit = price <= entry * 0.993 if side == "long" else price >= entry * 1.007
+                # TP və SL
+                tp = entry * 1.005 if side == "long" else entry * 0.995
+                sl = entry * 0.993 if side == "long" else entry * 1.007
 
-                if tp_hit or sl_hit:
-                    action = "sell" if side == "long" else "buy"
-                    if place_order(action, amt, price):
-                        pnl = calculate_pnl(entry, price, amt, side)
+                if (side == "long" and (price >= tp or price <= sl)) or \
+                   (side == "short" and (price <= tp or price >= sl)):
+                    act = "sell" if side == "long" else "buy"
+                    if place_order(act, amt, price):
+                        pnl = round((price - entry) * amt, 2) if side == "long" else round((entry - price) * amt, 2)
                         log(f"💰 Mövqe bağlandı. PNL: {pnl} USDT")
                         active_position = None
 
