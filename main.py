@@ -2,47 +2,66 @@ import ccxt
 import time
 import os
 
-# API açarlarını oxu
-api_key = os.getenv("3215690da725d2f6600d68c0b3f94acd")
-api_secret = os.getenv("49992db3f25ad79ad37c71588a07f1896868b7fc0ba46e1c79b53ec9317fab49")
+api_key = os.getenv("GATE_API_KEY")
+api_secret = os.getenv("GATE_API_SECRET")
 
-# Gate.io futures bazarında işə sal
 exchange = ccxt.gate({
     'apiKey': api_key,
     'secret': api_secret,
     'enableRateLimit': True,
     'options': {
-        'defaultType': 'future'
+        'defaultType': 'delivery',
     }
 })
 
 symbol = 'TON/USDT:USDT'
 leverage = 3
-amount = 1  # 1 TON per trade
+base_amount = 1  # LOT ölçüsü
+lower_price = 3.00
+upper_price = 3.80
+grid_count = 20
 
-# Leverage təyin et
-markets = exchange.load_markets()
-market = markets[symbol]
-exchange.set_leverage(leverage, symbol)
+def generate_grid(lower, upper, count):
+    step = (upper - lower) / count
+    return [round(lower + step * i, 4) for i in range(count + 1)]
+
+def cancel_open_orders():
+    try:
+        orders = exchange.fetch_open_orders(symbol)
+        for order in orders:
+            exchange.cancel_order(order['id'], symbol)
+    except Exception as e:
+        print(f"Cancel error: {e}")
 
 def run_bot():
-    print("TON Dominator Bot started...")
+    print("TON DOMINATOR AI GRID BOT started...")
+    exchange.set_leverage(leverage, symbol)
+    grids = generate_grid(lower_price, upper_price, grid_count)
+
     while True:
-        ticker = exchange.fetch_ticker(symbol)
-        price = ticker['last']
-        print(f"CURRENT TON PRICE: {price} USDT")
+        try:
+            price = exchange.fetch_ticker(symbol)['last']
+            print(f"TON price: {price}")
 
-        balance = exchange.fetch_balance()
-        ton_position = balance['total'].get('TON', 0)
+            balance = exchange.fetch_balance()
+            ton_bal = balance['total'].get('TON', 0)
+            usdt_bal = balance['total'].get('USDT', 0)
 
-        if price < 3.2:
-            order = exchange.create_market_buy_order(symbol, amount)
-            print(f"Bought {amount} TON at {price}")
-        elif price > 3.8 and ton_position > 0:
-            order = exchange.create_market_sell_order(symbol, amount)
-            print(f"Sold {amount} TON at {price}")
-        
-        time.sleep(60)  # 1 dəqiqədən bir yoxla
+            cancel_open_orders()
+
+            for grid_price in grids:
+                if price <= grid_price:
+                    print(f"Placing LONG buy order at {grid_price}")
+                    exchange.create_limit_buy_order(symbol, base_amount, grid_price)
+                elif price >= grid_price:
+                    print(f"Placing SHORT sell order at {grid_price}")
+                    exchange.create_limit_sell_order(symbol, base_amount, grid_price)
+
+            time.sleep(30)
+
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(10)
 
 if __name__ == "__main__":
     run_bot()
