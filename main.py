@@ -1,10 +1,11 @@
 import os
 import ccxt
+import time
 from datetime import datetime
 
 # === Logger ===
 def log(msg):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now().strftime("%H:%M:%S")
     print(f"[{now}] {msg}")
 
 # === API Keys ===
@@ -12,52 +13,69 @@ api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
-    log("❌ API açarları tapılmayıb!")
+    log("❌ API açarları tapılmadı!")
     exit(1)
 
-# === Exchange Setup ===
+# === Exchange Config ===
 try:
     exchange = ccxt.gate({
         'apiKey': api_key,
         'secret': api_secret,
         'enableRateLimit': True,
-        'options': {
-            'defaultType': 'perpetual'
-        }
+        'options': {'defaultType': 'perpetual'}
     })
     log("✅ Exchange uğurla yaradıldı")
 except Exception as e:
-    log(f"❌ Exchange yaradılarkən xəta: {e}")
+    log(f"❌ Exchange xətası: {e}")
     exit(1)
 
 # === Parametrlər ===
 symbol = 'TON/USDT:USDT'
 leverage = 3
-amount = 1  # test üçün 1 TON
+amount = 1  # TON miqdarı
+buy_threshold = 3.5
+sell_threshold = 3.8
 
-# === Botun əsas funksiyası ===
+active_position = None
+
+# === Bot funksiyası ===
 def run_bot():
-    log("🚀 TEST: TON DOMINATOR başladı")
+    global active_position
 
     try:
         exchange.set_leverage(leverage, symbol)
         log(f"✅ Leverage təyin edildi: {leverage}x")
     except Exception as e:
-        log(f"❌ Leverage xətası: {e}")
+        log(f"⚠️ Leverage xətası: {e}")
 
-    try:
-        price = exchange.fetch_ticker(symbol)['last']
-        log(f"📈 TON qiyməti: {price}")
+    while True:
+        try:
+            ticker = exchange.fetch_ticker(symbol)
+            price = ticker['last']
+            log(f"📊 TON Qiyməti: {price} USDT")
 
-        # Sadə filtrləmə: 3.5-dən yuxarı almayacaq
-        if price > 3.5:
-            log("🟡 TON qiyməti 3.5-dən yuxarıdır, ALIŞ etmədi.")
-            return
+            if not active_position and price < buy_threshold:
+                order = exchange.create_market_buy_order(symbol, amount)
+                log(f"✅ ALIŞ edildi: {amount} TON at {price} USDT")
+                active_position = {
+                    "side": "long",
+                    "entry_price": price
+                }
 
-        order = exchange.create_market_buy_order(symbol, amount)
-        log(f"✅ TEST BUY: {amount} TON at {price}")
-    except Exception as e:
-        log(f"❗️ ERROR: {e}")
+            elif active_position and active_position["side"] == "long" and price > sell_threshold:
+                order = exchange.create_market_sell_order(symbol, amount)
+                pnl = round((price - active_position["entry_price"]) * amount, 2)
+                log(f"✅ SATIŞ edildi: {amount} TON at {price} USDT | 💰 PNL: {pnl} USDT")
+                active_position = None
+
+            else:
+                log("⏳ Şərtlər uyğun deyil. Gözləyirəm...")
+
+            time.sleep(60)
+
+        except Exception as e:
+            log(f"❗️ Dövr daxilində xəta: {e}")
+            time.sleep(30)
 
 # === Başlat ===
 if __name__ == "__main__":
