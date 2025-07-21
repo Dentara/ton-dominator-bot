@@ -14,6 +14,18 @@ api_secret = os.getenv("GATE_API_SECRET")
 if not api_key or not api_secret:
     log("❌ API açarları tapılmadı! Environment Variables düzgün daxil edilməyib.")
     exit(1)
+log("📦 Marketləri yükləyirəm...")
+markets = exchange.load_markets()
+log(f"✅ Market sayı: {len(markets)}")
+
+if 'TON/USDT:USDT' not in markets:
+    log("❌ TON/USDT:USDT cütü mövcud deyil! Əsas problem budur!")
+    log("Mövcud bazarlar:")
+    for s in markets:
+        if 'TON' in s:
+            log(f" - {s}")
+    exit(1)
+
 
 try:
     exchange = ccxt.gate({
