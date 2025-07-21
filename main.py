@@ -75,6 +75,12 @@ def place_order(side, amount, price):
         log(f"❌ ORDER error: {e}")
         return False
 
+def calculate_pnl(entry, exit, amount, side):
+    if side == "long":
+        return round((exit - entry) * amount, 2)
+    else:
+        return round((entry - exit) * amount, 2)
+
 def run_bot():
     global active_position
     log("🚀 TON DOMINATOR AI PRO başladı")
@@ -98,28 +104,28 @@ def run_bot():
             usdt = balance['total'].get('USDT', initial_balance)
             amount = round(max(usdt * 0.02 / price, 0.1), 2)
 
-            log(f"📊 STRATEGY: {strategy} | PRICE: {price} | AMOUNT: {amount} | BAL: {usdt}")
+            log(f"📊 STRATEGY: {strategy} | PRICE: {price} | AMOUNT: {amount} | BALANCE: {usdt}")
 
             if strategy == "buy" and not active_position:
                 if place_order("buy", amount, price):
                     active_position = {"side": "long", "entry": price, "amount": amount}
+
             elif strategy == "sell" and not active_position:
                 if place_order("sell", amount, price):
                     active_position = {"side": "short", "entry": price, "amount": amount}
+
             elif active_position:
                 entry = active_position['entry']
                 side = active_position['side']
                 amt = active_position['amount']
-
-                # TP və SL
-                tp = entry * 1.005 if side == "long" else entry * 0.995
-                sl = entry * 0.993 if side == "long" else entry * 1.007
+                tp = entry * 1.004
+                sl = entry * 0.992 if side == "long" else entry * 1.008
 
                 if (side == "long" and (price >= tp or price <= sl)) or \
                    (side == "short" and (price <= tp or price >= sl)):
-                    act = "sell" if side == "long" else "buy"
-                    if place_order(act, amt, price):
-                        pnl = round((price - entry) * amt, 2) if side == "long" else round((entry - price) * amt, 2)
+                    close_side = "sell" if side == "long" else "buy"
+                    if place_order(close_side, amt, price):
+                        pnl = calculate_pnl(entry, price, amt, side)
                         log(f"💰 Mövqe bağlandı. PNL: {pnl} USDT")
                         active_position = None
 
