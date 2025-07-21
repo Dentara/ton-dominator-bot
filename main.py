@@ -5,8 +5,7 @@ import numpy as np
 from datetime import datetime
 
 def log(msg):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now}] {msg}")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
@@ -83,7 +82,7 @@ def calculate_pnl(entry, exit, amount, side):
 
 def run_bot():
     global active_position
-    log("🚀 TON DOMINATOR AI PRO başladı")
+    log("🚀 TON DOMINATOR AI başladı")
     try:
         exchange.set_leverage(leverage, symbol)
         log(f"✅ Leverage təyin olundu: {leverage}x")
@@ -104,7 +103,7 @@ def run_bot():
             usdt = balance['total'].get('USDT', initial_balance)
             amount = round(max(usdt * 0.02 / price, 0.1), 2)
 
-            log(f"📊 STRATEGY: {strategy} | PRICE: {price} | AMOUNT: {amount} | BALANCE: {usdt}")
+            log(f"📊 STRATEGY: {strategy} | PRICE: {price} | AMOUNT: {amount} | BAL: {usdt}")
 
             if strategy == "buy" and not active_position:
                 if place_order("buy", amount, price):
@@ -118,8 +117,8 @@ def run_bot():
                 entry = active_position['entry']
                 side = active_position['side']
                 amt = active_position['amount']
-                tp = entry * 1.004
-                sl = entry * 0.992 if side == "long" else entry * 1.008
+                tp = entry * 1.005
+                sl = entry * 0.993 if side == "long" else entry * 1.007
 
                 if (side == "long" and (price >= tp or price <= sl)) or \
                    (side == "short" and (price <= tp or price >= sl)):
