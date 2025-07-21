@@ -8,15 +8,15 @@ from ai.sentiment_analyzer import get_sentiment_score
 from utils.logger import log
 from utils.risk_control import adjust_position_size
 
-# API açarları
+# === Environment Variables ===
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
-    log("❌ API açarları tapılmadı!")
+    log("❌ API açarları tapılmadı! Render Environment Variables daxil edilməyib.")
     exit(1)
 
-# Exchange obyekti əvvəl YARADILMALIDIR!
+# === Exchange Object ===
 try:
     exchange = ccxt.gate({
         'apiKey': api_key,
@@ -26,43 +26,48 @@ try:
             'defaultType': 'perpetual'
         }
     })
-    log("✅ Exchange obyekti yaradıldı")
+    log("✅ Exchange obyekti uğurla yaradıldı")
 except Exception as e:
-    log(f"❌ Exchange yaratmaq mümkün olmadı: {e}")
+    log(f"❌ Exchange yaradılarkən xəta: {e}")
     exit(1)
 
+# === Symbol & Parameters ===
 symbol = 'TON/USDT:USDT'
 leverage = 3
 base_amount = 1
 
-# Marketi yoxlayan funksiyanı çağır
+# === Market Check ===
 def check_market():
     try:
         log("📦 Marketləri yükləyirəm...")
         markets = exchange.load_markets()
-        log(f"✅ Market sayı: {len(markets)}")
+        log(f"✅ Ümumi market sayı: {len(markets)}")
 
-        if symbol not in markets:
-            log(f"❌ Symbol tapılmadı: {symbol}")
-            for s in markets:
-                if 'TON' in s:
-                    log(f"🔍 Mövcud bazar: {s}")
+        found = False
+        for s in markets:
+            if 'TON' in s:
+                log(f"🔍 Mövcud TON bazarı: {s}")
+            if s == symbol:
+                found = True
+
+        if not found:
+            log(f"❌ '{symbol}' mövcud deyil! Düzgün symbol təyin edilməlidir.")
             exit(1)
         else:
-            log(f"✅ Symbol mövcuddur: {symbol}")
+            log(f"✅ '{symbol}' mövcuddur və istifadə ediləcək.")
     except Exception as e:
-        log(f"❌ Market yükləmə xətası: {e}")
+        log(f"❌ Market yoxlanışı zamanı xəta: {e}")
         exit(1)
 
-# Əsas bot
+# === Bot Core ===
 def run_bot():
     log("🚀 TON DOMINATOR AI v2.0 başladı")
 
     try:
         exchange.set_leverage(leverage, symbol)
-        log(f"✅ Leverage təyin olundu: {leverage}x")
+        log(f"✅ Leverage təyin edildi: {leverage}x")
     except Exception as e:
-        log(f"❌ Leverage təyini uğursuz oldu: {e}")
+        log(f"⚠️ Leverage təyini uğursuz: {e}")
 
     while True:
         try:
@@ -81,23 +86,24 @@ def run_bot():
             sentiment = get_sentiment_score()
             amount = adjust_position_size(base_amount, sentiment, strategy)
 
-            log(f"📊 STRATEGIYA | Price: {price} | Signal: {strategy} | Sentiment: {sentiment} | Amount: {amount}")
+            log(f"📊 STRATEGIYA → Price: {price} | Signal: {strategy} | Sentiment: {sentiment} | Amount: {amount}")
 
             if strategy == "buy":
                 exchange.create_market_buy_order(symbol, amount)
-                log(f"✅ BUY {amount} TON at {price}")
+                log(f"✅ BUY əmri icra olundu: {amount} TON at {price}")
             elif strategy == "sell":
                 exchange.create_market_sell_order(symbol, amount)
-                log(f"✅ SELL {amount} TON at {price}")
+                log(f"✅ SELL əmri icra olundu: {amount} TON at {price}")
             else:
-                log("🟡 HOLD – Heç bir əməliyyat verilmir")
+                log("🟡 HOLD – Şərtlər əməliyyat üçün uyğun deyil")
 
             time.sleep(60)
 
         except Exception as e:
-            log(f"❗️ TRY blokunda xəta baş verdi: {e}")
+            log(f"❗️ Dövr daxilində xəta: {e}")
             time.sleep(30)
 
+# === Başlat ===
 if __name__ == "__main__":
     check_market()
     run_bot()
