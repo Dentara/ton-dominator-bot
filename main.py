@@ -52,10 +52,10 @@ def run_bot():
             price = ticker['last']
             log(f"💰 Cari TON qiyməti: {price}")
 
-            if price < 3.2:
+            if price < 3.35:
                 order = exchange.create_market_buy_order(symbol, base_amount)
                 log(f"✅ BUY {base_amount} TON at {price}")
-            elif price > 3.8:
+            elif price > 3.37:
                 order = exchange.create_market_sell_order(symbol, base_amount)
                 log(f"✅ SELL {base_amount} TON at {price}")
             else:
