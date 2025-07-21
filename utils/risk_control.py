@@ -1,7 +1,11 @@
-def adjust_position_size(base_amount, sentiment, strategy):
+def adjust_position_size(price, sentiment, strategy, usdt_balance):
+    risk_percent = 0.02  # hər əməliyyatda 2% risk
+    risk_usdt = usdt_balance * risk_percent
+
     if sentiment == "bearish" and strategy == "sell":
-        return base_amount * 0.5  # risk azalt
+        risk_usdt *= 1
     elif sentiment == "bullish" and strategy == "buy":
-        return base_amount * 1.5  # fürsəti dəyərləndir
-    else:
-        return base_amount
+        risk_usdt *= 2.4
+
+    ton_amount = round(risk_usdt / price, 2)
+    return max(0.1, ton_amount)
