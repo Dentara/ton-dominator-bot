@@ -22,7 +22,7 @@ try:
         'apiKey': api_key,
         'secret': api_secret,
         'enableRateLimit': True,
-        'options': {'defaultType': 'delivery'}
+        'options': {'defaultType': 'perpetual'}
     })
 except Exception as e:
     log(f"❌ exchange init xətası: {e}")
