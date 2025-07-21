@@ -12,46 +12,48 @@ from utils.risk_control import adjust_position_size
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
-# Gate.io futures delivery bazarında trade üçün hazırlanır
-exchange = ccxt.gate({
-    'apiKey': api_key,
-    'secret': api_secret,
-    'enableRateLimit': True,
-    'options': {
-        'defaultType': 'delivery'
-    }
-})
+if not api_key or not api_secret:
+    log("❌ API açarları tapılmadı! Environment Variables düzgün daxil olunmayıb.")
+    exit(1)
 
-# Əsas parametrlər
+# Exchange qur
+try:
+    exchange = ccxt.gate({
+        'apiKey': api_key,
+        'secret': api_secret,
+        'enableRateLimit': True,
+        'options': {'defaultType': 'delivery'}
+    })
+except Exception as e:
+    log(f"❌ exchange init xətası: {e}")
+    exit(1)
+
 symbol = 'TON/USDT:USDT'
 leverage = 3
-base_amount = 1  # TON
+base_amount = 1
 
 def run_bot():
-    log("TON DOMINATOR AI v2.0 started... 🚀")
+    log("✅ TON DOMINATOR AI v2.0 başladı...")
+
     try:
         exchange.set_leverage(leverage, symbol)
+        log(f"✅ Leverage təyin olundu: {leverage}x")
     except Exception as e:
-        log(f"Leverage set error: {e}")
-    
+        log(f"❌ Leverage qoyulmadı: {e}")
+
     while True:
         try:
             ticker = exchange.fetch_ticker(symbol)
             candles = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=100)
             price = ticker['last']
 
-            # Texniki analiz və pattern tanıma
             ta_signal = analyze_technicals(candles)
             pattern_signal = detect_pattern(candles)
             strategy = determine_strategy(ta_signal, pattern_signal)
-
-            # Fundamental sentiment analizi
             sentiment = get_sentiment_score()
-
-            # Mövqe ölçüsü riskə uyğun tənzimlənir
             amount = adjust_position_size(base_amount, sentiment, strategy)
 
-            log(f"📊 Price: {price} | Strategy: {strategy} | Sentiment: {sentiment} | Amount: {amount:.2f}")
+            log(f"📊 TON Price: {price} | Strategy: {strategy} | Sentiment: {sentiment} | Amount: {amount}")
 
             if strategy == "buy":
                 exchange.create_market_buy_order(symbol, amount)
@@ -60,13 +62,13 @@ def run_bot():
                 exchange.create_market_sell_order(symbol, amount)
                 log(f"✅ SELL {amount:.2f} TON at {price}")
             else:
-                log("🕒 HOLD – Market conditions neutral.")
+                log("🟡 HOLD – Şərtlər uyğun deyil")
 
             time.sleep(60)
 
         except Exception as e:
-            log(f"⚠️ Error: {e}")
-            time.sleep(15)
+            log(f"❌ İşləmə zamanı xəta: {e}")
+            time.sleep(30)
 
 if __name__ == "__main__":
     run_bot()
