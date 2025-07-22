@@ -4,6 +4,7 @@ import ccxt
 from datetime import datetime
 from ai.strategy_manager import StrategyManager
 from utils.trade_executor import execute_trade
+from utils.risk_control import RiskManager
 
 # === Logger ===
 def log(msg):
@@ -40,6 +41,7 @@ base_amount = 1
 price_history = []
 
 strategy = StrategyManager()
+risk_manager = RiskManager()
 
 # === Bot Core Loop ===
 def run_bot():
@@ -61,16 +63,28 @@ def run_bot():
 
             log(f"💰 Cari TON qiyməti: {price}")
 
+            balance_info = exchange.fetch_balance({'type': 'contract'})
+            usdt_balance = balance_info['total']['USDT']
+
+            if risk_manager.is_risk_limit_exceeded(usdt_balance):
+                log("⛔ Risk limiti aşılıb, ticarət dayandırılır")
+                break
+
             decision = strategy.decide(price_history)
             indicators = strategy.get_indicators(price_history)
             log(f"📊 EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}, Siqnal: {decision}")
 
+            order = {}
             if decision == "LONG":
-                execute_trade(exchange, symbol, "buy", base_amount)
+                order = execute_trade(exchange, symbol, "buy", base_amount)
             elif decision == "SHORT":
-                execute_trade(exchange, symbol, "sell", base_amount)
+                order = execute_trade(exchange, symbol, "sell", base_amount)
             else:
                 log("🟡 NO_ACTION: Mövqe açılmadı")
+
+            if 'info' in order and 'profit' in order['info']:
+                pnl = float(order['info']['profit'])
+                risk_manager.update_pnl(pnl)
 
             time.sleep(60)  # 1 dəqiqə fasilə
 
