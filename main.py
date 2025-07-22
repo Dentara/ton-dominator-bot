@@ -17,7 +17,7 @@ api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
-    log(f"❌ API açarları tapılmadı! API_KEY: {api_key}, API_SECRET: {api_secret}")
+    log("❌ API açarları tapılmadı!")
     exit(1)
 
 # === Exchange Setup ===
@@ -81,7 +81,6 @@ def run_bot():
                 side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, base_amount)
                 state_tracker.update_position(decision)
-                log(f"📌 Mövqe yeniləndi: {decision}")
             elif decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
             else:
@@ -91,7 +90,7 @@ def run_bot():
                 pnl = float(order['info']['profit'])
                 risk_manager.update_pnl(pnl)
 
-            time.sleep(60)
+            time.sleep(60)  # 1 dəqiqə fasilə
 
         except Exception as e:
             log(f"❗️ Dövr xətası: {e}")
