@@ -2,6 +2,8 @@ import os
 import time
 import ccxt
 from datetime import datetime
+from ai.strategy_manager import StrategyManager
+from utils.trade_executor import execute_trade
 
 # === Logger ===
 def log(msg):
@@ -35,10 +37,13 @@ except Exception as e:
 symbol = 'TON/USDT:USDT'
 leverage = 3
 base_amount = 1
+price_history = []
+
+strategy = StrategyManager()
 
 # === Bot Core Loop ===
 def run_bot():
-    log("🚀 TON DOMINATOR başladı (Live mode)")
+    log("🚀 GATE PERP BOT başladı (Intelligent mode)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -50,16 +55,22 @@ def run_bot():
         try:
             ticker = exchange.fetch_ticker(symbol)
             price = ticker['last']
+            price_history.append(price)
+            if len(price_history) > 100:
+                price_history.pop(0)
+
             log(f"💰 Cari TON qiyməti: {price}")
 
-            if price < 3.35:
-                order = exchange.create_market_buy_order(symbol, base_amount)
-                log(f"✅ BUY {base_amount} TON at {price}")
-            elif price > 3.37:
-                order = exchange.create_market_sell_order(symbol, base_amount)
-                log(f"✅ SELL {base_amount} TON at {price}")
+            decision = strategy.decide(price_history)
+            indicators = strategy.get_indicators(price_history)
+            log(f"📊 EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}, Siqnal: {decision}")
+
+            if decision == "LONG":
+                execute_trade(exchange, symbol, "buy", base_amount)
+            elif decision == "SHORT":
+                execute_trade(exchange, symbol, "sell", base_amount)
             else:
-                log("🟡 Şərt yoxdur, gözləyir...")
+                log("🟡 NO_ACTION: Mövqe açılmadı")
 
             time.sleep(60)  # 1 dəqiqə fasilə
 
