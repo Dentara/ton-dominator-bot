@@ -39,6 +39,9 @@ if not api_key or not api_secret:
     log(f"❌ API açarları tapılmadı! API_KEY: {api_key}, API_SECRET: {api_secret}")
     exit(1)
 
+state_tracker.update_position(decision)
+log(f"📌 Mövqe yeniləndi: {decision}")  # 👈 Əlavə log
+
 # === Parameters ===
 symbol = 'TON/USDT:USDT'
 leverage = 3
