@@ -35,6 +35,10 @@ except Exception as e:
     log(f"❌ Exchange xətası: {e}")
     exit(1)
 
+if not api_key or not api_secret:
+    log(f"❌ API açarları tapılmadı! API_KEY: {api_key}, API_SECRET: {api_secret}")
+    exit(1)
+
 # === Parameters ===
 symbol = 'TON/USDT:USDT'
 leverage = 3
