@@ -3,6 +3,7 @@ import time
 import ccxt
 from datetime import datetime
 from ai.strategy_manager import StrategyManager
+from ai.state_tracker import StateTracker
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 
@@ -42,6 +43,7 @@ price_history = []
 
 strategy = StrategyManager()
 risk_manager = RiskManager()
+state_tracker = StateTracker()
 
 # === Bot Core Loop ===
 def run_bot():
@@ -75,12 +77,14 @@ def run_bot():
             log(f"📊 EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}, Siqnal: {decision}")
 
             order = {}
-            if decision == "LONG":
-                order = execute_trade(exchange, symbol, "buy", base_amount)
-            elif decision == "SHORT":
-                order = execute_trade(exchange, symbol, "sell", base_amount)
-            else:
+            if decision in ["LONG", "SHORT"] and state_tracker.should_trade(decision):
+                side = "buy" if decision == "LONG" else "sell"
+                order = execute_trade(exchange, symbol, side, base_amount)
+                state_tracker.update_position(decision)
+            elif decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
+            else:
+                log("🟡 Eyni mövqe mövcuddur, ticarət atlanır")
 
             if 'info' in order and 'profit' in order['info']:
                 pnl = float(order['info']['profit'])
