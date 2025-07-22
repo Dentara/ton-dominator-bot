@@ -49,6 +49,8 @@ strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
 
+decision = strategy.decide(price_history)
+
 # === Bot Core Loop ===
 def run_bot():
     log("🚀 GATE PERP BOT başladı (Intelligent mode)")
