@@ -17,7 +17,7 @@ api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
-    log("❌ API açarları tapılmadı!")
+    log(f"❌ API açarları tapılmadı! API_KEY: {api_key}, API_SECRET: {api_secret}")
     exit(1)
 
 # === Exchange Setup ===
@@ -35,13 +35,6 @@ except Exception as e:
     log(f"❌ Exchange xətası: {e}")
     exit(1)
 
-if not api_key or not api_secret:
-    log(f"❌ API açarları tapılmadı! API_KEY: {api_key}, API_SECRET: {api_secret}")
-    exit(1)
-
-state_tracker.update_position(decision)
-log(f"📌 Mövqe yeniləndi: {decision}")  # 👈 Əlavə log
-
 # === Parameters ===
 symbol = 'TON/USDT:USDT'
 leverage = 3
@@ -51,8 +44,6 @@ price_history = []
 strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
-
-decision = strategy.decide(price_history)
 
 # === Bot Core Loop ===
 def run_bot():
@@ -90,6 +81,7 @@ def run_bot():
                 side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, base_amount)
                 state_tracker.update_position(decision)
+                log(f"📌 Mövqe yeniləndi: {decision}")
             elif decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
             else:
@@ -99,7 +91,7 @@ def run_bot():
                 pnl = float(order['info']['profit'])
                 risk_manager.update_pnl(pnl)
 
-            time.sleep(60)  # 1 dəqiqə fasilə
+            time.sleep(60)
 
         except Exception as e:
             log(f"❗️ Dövr xətası: {e}")
