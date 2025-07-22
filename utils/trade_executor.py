@@ -16,6 +16,7 @@ def execute_trade(exchange, symbol: str, side: str, amount: float) -> dict:
             return {}
 
         log(f"✅ {side.upper()} {amount} {symbol} icra edildi")
+        log(f"📤 Əməliyyat siqnalı gəldi: {side.upper()} göndərilir")  # 👈 bunu əlavə et
         return order
 
     except Exception as e:
