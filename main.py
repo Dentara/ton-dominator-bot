@@ -45,6 +45,8 @@ strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
 
+from utils.telegram_notifier import send_telegram_message
+
 # === Bot Core Loop ===
 def run_bot():
     log("🚀 GATE PERP BOT başladı (Intelligent mode)")
