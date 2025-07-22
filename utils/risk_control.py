@@ -1,11 +1,35 @@
-def adjust_position_size(price, sentiment, strategy, usdt_balance):
-    risk_percent = 0.02  # hər əməliyyatda 2% risk
-    risk_usdt = usdt_balance * risk_percent
+from datetime import datetime
 
-    if sentiment == "bearish" and strategy == "sell":
-        risk_usdt *= 1
-    elif sentiment == "bullish" and strategy == "buy":
-        risk_usdt *= 2.4
+class RiskManager:
+    def __init__(self, max_daily_loss: float = 50.0, max_consecutive_losses: int = 3, min_balance: float = 20.0):
+        self.daily_loss = 0.0
+        self.consecutive_losses = 0
+        self.max_daily_loss = max_daily_loss
+        self.max_consecutive_losses = max_consecutive_losses
+        self.min_balance = min_balance
+        self.last_trade_pnl = 0.0
+        self.daily_reset_time = datetime.now().date()
 
-    ton_amount = round(risk_usdt / price, 2)
-    return max(0.1, ton_amount)
+    def update_pnl(self, pnl: float):
+        today = datetime.now().date()
+        if today != self.daily_reset_time:
+            self.daily_loss = 0.0
+            self.consecutive_losses = 0
+            self.daily_reset_time = today
+
+        self.last_trade_pnl = pnl
+        self.daily_loss += max(-pnl, 0)
+
+        if pnl < 0:
+            self.consecutive_losses += 1
+        else:
+            self.consecutive_losses = 0
+
+    def is_risk_limit_exceeded(self, current_balance: float) -> bool:
+        if self.daily_loss >= self.max_daily_loss:
+            return True
+        if self.consecutive_losses >= self.max_consecutive_losses:
+            return True
+        if current_balance <= self.min_balance:
+            return True
+        return False
