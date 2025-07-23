@@ -20,23 +20,34 @@ class StrategyManager:
         rsi = calculate_rsi(close_prices, self.rsi_period)
         trend = self.trend_detector.detect_trend(close_prices)
 
-        # === RSI Breakout əsaslı qərar sistemi ===
+        debug_msg = (
+            f"[STRATEGY DEBUG]\n"
+            f"EMA7: {ema_fast}, EMA21: {ema_slow}\n"
+            f"RSI: {rsi}, Prev RSI: {self.prev_rsi}\n"
+            f"Trend: {trend}"
+        )
+        print(debug_msg)
+
+        # Əlavə Telegram debug mesajı üçün istəyirsənsə buraya göndərə bilərsən
+        # send_telegram_message(debug_msg)
+
+        # === RSI Breakout ===
         if self.prev_rsi:
             if self.prev_rsi < 40 and rsi > 45:
                 return "LONG"
             if self.prev_rsi > 60 and rsi < 55:
                 return "SHORT"
 
-        # === Əlavə trend + RSI qərarı ===
-        if rsi < 35 and trend == "downtrend":
+        # === Sadə RSI əsasında siqnallar ===
+        if rsi <= 30:
+            return "LONG"
+        elif rsi >= 70:
             return "SHORT"
-        elif rsi > 65 and trend == "uptrend":
-            return "LONG"
 
-        # === EMA təsdiqi (yalnız əlavə filtr kimi) ===
-        if ema_fast > ema_slow and rsi > 50 and trend == "uptrend":
+        # === EMA + Trend kombinasiya (yumşaldılmış) ===
+        if ema_fast > ema_slow and rsi > 50 and trend in ["uptrend", "neutral"]:
             return "LONG"
-        elif ema_fast < ema_slow and rsi < 50 and trend == "downtrend":
+        elif ema_fast < ema_slow and rsi < 50 and trend in ["downtrend", "neutral"]:
             return "SHORT"
 
         self.prev_rsi = rsi
