@@ -49,7 +49,7 @@ state_tracker = StateTracker()
 
 # === Bot Core Loop ===
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (Trend + Candle + Cooldown)")
+    log("🚀 GATE PERP BOT başladı (Trend + Candle + Cooldown + Debug)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -89,15 +89,15 @@ def run_bot():
             decision = strategy.decide(close_prices)
             indicators = strategy.get_indicators(close_prices)
 
-            message = (
-                f"📊 <b>TON ANALİZ</b>\n"
+            debug_message = (
+                f"🔍 <b>STRATEGIYA DEBUG</b>\n"
                 f"EMA7: {indicators['ema_fast']}\n"
                 f"EMA21: {indicators['ema_slow']}\n"
                 f"RSI: {indicators['rsi']}\n"
-                f"📌 Siqnal: <b>{decision}</b>\n"
-                f"Mövcud Mövqe: {state_tracker.get_position()}"
+                f"📌 Qərar (decision): <b>{decision}</b>\n"
+                f"📎 Cari Mövqe: {state_tracker.get_position()}"
             )
-            send_telegram_message(message)
+            send_telegram_message(debug_message)
 
             amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
             if amount < 0.1:
@@ -105,7 +105,7 @@ def run_bot():
                 continue
 
             active_position = state_tracker.get_position()
-            order = {}  # 🔧 fix: order əvvəlcədən tanımlanır
+            order = {}
 
             if decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
@@ -120,7 +120,6 @@ def run_bot():
                 else:
                     log("⏳ Mövqe hələ qorunur, əks siqnal üçün vaxt lazım")
             else:
-                # Mövqe eyni istiqamətdədirsə, artır
                 side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, amount)
                 state_tracker.update_position(decision)
