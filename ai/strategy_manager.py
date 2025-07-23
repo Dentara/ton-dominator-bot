@@ -1,6 +1,6 @@
 # ai/strategy_manager.py
 
-from utils.indicators import calculate_ema, calculate_rsi, is_overbought, is_oversold
+from utils.indicators import calculate_ema, calculate_rsi
 from ai.trend_detector import TrendDetector
 
 class StrategyManager:
@@ -20,21 +20,27 @@ class StrategyManager:
         rsi = calculate_rsi(close_prices, self.rsi_period)
         trend = self.trend_detector.detect_trend(close_prices)
 
-        # RSI breakout siqnalları (yeni)
+        # === RSI Breakout əsaslı qərar sistemi ===
         if self.prev_rsi:
             if self.prev_rsi < 40 and rsi > 45:
                 return "LONG"
             if self.prev_rsi > 60 and rsi < 55:
                 return "SHORT"
 
-        self.prev_rsi = rsi
-
-        if ema_fast > ema_slow and not is_overbought(rsi) and trend == "uptrend":
-            return "LONG"
-        elif ema_fast < ema_slow and not is_oversold(rsi) and trend == "downtrend":
+        # === Əlavə trend + RSI qərarı ===
+        if rsi < 35 and trend == "downtrend":
             return "SHORT"
-        else:
-            return "NO_ACTION"
+        elif rsi > 65 and trend == "uptrend":
+            return "LONG"
+
+        # === EMA təsdiqi (yalnız əlavə filtr kimi) ===
+        if ema_fast > ema_slow and rsi > 50 and trend == "uptrend":
+            return "LONG"
+        elif ema_fast < ema_slow and rsi < 50 and trend == "downtrend":
+            return "SHORT"
+
+        self.prev_rsi = rsi
+        return "NO_ACTION"
 
     def get_indicators(self, close_prices: list[float]) -> dict:
         return {
