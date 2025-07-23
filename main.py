@@ -32,7 +32,7 @@ try:
         'secret': api_secret,
         'enableRateLimit': True,
         'options': {
-            'defaultType': 'perpetual'
+            'defaultType': 'future'  # Əvvəl 'perpetual' idi
         }
     })
     log("✅ Exchange uğurla yaradıldı")
@@ -73,6 +73,7 @@ def run_bot():
             try:
                 balance_info = exchange.fetch_balance()
                 usdt_balance = balance_info['total'].get('USDT', 0)
+                log(f"💳 Balans: {usdt_balance} USDT")
             except Exception as e:
                 log(f"❗ Balance oxuma xətası: {e}")
                 usdt_balance = 0
