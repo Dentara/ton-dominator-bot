@@ -32,7 +32,7 @@ try:
         'secret': api_secret,
         'enableRateLimit': True,
         'options': {
-            'defaultType': 'swap'  # Futures (perpetual) balans üçün
+            'defaultType': 'swap'
         }
     })
     log("✅ Exchange uğurla yaradıldı")
@@ -43,16 +43,13 @@ except Exception as e:
 # === Parameters ===
 symbol = 'TON/USDT:USDT'
 leverage = 3
-base_amount = 1
-price_history = []
-
 strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
 
 # === Bot Core Loop ===
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (Intelligent mode)")
+    log("🚀 GATE PERP BOT başladı (Candle mode + Dynamic amount)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -60,15 +57,22 @@ def run_bot():
     except Exception as e:
         log(f"❌ Leverage xətası: {e}")
 
+    last_candle_time = None
+
     while True:
         try:
-            ticker = exchange.fetch_ticker(symbol)
-            price = ticker['last']
-            price_history.append(price)
-            if len(price_history) > 100:
-                price_history.pop(0)
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=30)
+            last_candle = ohlcv[-1]
+            candle_time = last_candle[0]
+            close_prices = [c[4] for c in ohlcv]
+            current_price = close_prices[-1]
 
-            log(f"💰 Cari TON qiyməti: {price}")
+            if candle_time == last_candle_time:
+                time.sleep(5)
+                continue
+
+            last_candle_time = candle_time
+            log(f"🕐 Yeni 1 dəqiqəlik candle gəldi | Qiymət: {current_price}")
 
             try:
                 balance_info = exchange.fetch_balance({"type": "swap"})
@@ -82,8 +86,8 @@ def run_bot():
                 log("⛔ Risk limiti aşılıb, ticarət dayandırılır")
                 break
 
-            decision = strategy.decide(price_history)
-            indicators = strategy.get_indicators(price_history)
+            decision = strategy.decide(close_prices)
+            indicators = strategy.get_indicators(close_prices)
 
             message = (
                 f"📊 <b>TON ANALİZ</b>\n"
@@ -96,10 +100,16 @@ def run_bot():
 
             order = {}
             if decision in ["LONG", "SHORT"] and state_tracker.should_trade(decision):
+                amount = round((usdt_balance * 0.1) / current_price, 2)
+                if amount < 0.1:
+                    log("⚠️ Balans çox aşağıdır, əməliyyat atlandı")
+                    continue
+
                 side = "buy" if decision == "LONG" else "sell"
-                order = execute_trade(exchange, symbol, side, base_amount)
+                order = execute_trade(exchange, symbol, side, amount)
                 state_tracker.update_position(decision)
-                log(f"📌 Mövqe yeniləndi: {decision}")
+                log(f"📌 Mövqe yeniləndi: {decision} | Miqdar: {amount} TON")
+
             elif decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
             else:
@@ -109,11 +119,11 @@ def run_bot():
                 pnl = float(order['info']['profit'])
                 risk_manager.update_pnl(pnl)
 
-            time.sleep(60)
+            time.sleep(5)
 
         except Exception as e:
             log(f"❗️ Dövr xətası: {e}")
-            time.sleep(30)
+            time.sleep(10)
 
 # === Entry Point ===
 run_bot()
