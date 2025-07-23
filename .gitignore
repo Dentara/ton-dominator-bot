@@ -1,0 +1,39 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
+
+# MacOS system files
+.DS_Store
+
+# Environment & secrets
+.env
+.env.*
+
+# Log files
+*.log
+logs/
+*.csv
+
+# __init__ backups
+*.bak
+
+# Test artifacts
+*.pytest_cache/
+coverage/
+htmlcov/
+
+# System files
+Thumbs.db
+ehthumbs.db
