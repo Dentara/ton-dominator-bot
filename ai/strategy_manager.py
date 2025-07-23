@@ -9,6 +9,7 @@ class StrategyManager:
         self.ema_slow_period = ema_slow
         self.rsi_period = rsi_period
         self.trend_detector = TrendDetector()
+        self.prev_rsi = None
 
     def decide(self, close_prices: list[float]) -> str:
         if len(close_prices) < max(self.ema_slow_period, self.rsi_period) + 1:
@@ -18,6 +19,15 @@ class StrategyManager:
         ema_slow = calculate_ema(close_prices, self.ema_slow_period)
         rsi = calculate_rsi(close_prices, self.rsi_period)
         trend = self.trend_detector.detect_trend(close_prices)
+
+        # RSI breakout siqnalları (yeni)
+        if self.prev_rsi:
+            if self.prev_rsi < 40 and rsi > 45:
+                return "LONG"
+            if self.prev_rsi > 60 and rsi < 55:
+                return "SHORT"
+
+        self.prev_rsi = rsi
 
         if ema_fast > ema_slow and not is_overbought(rsi) and trend == "uptrend":
             return "LONG"
