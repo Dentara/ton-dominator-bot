@@ -98,22 +98,19 @@ def run_bot():
             )
             send_telegram_message(message)
 
-            order = {}
-            if decision in ["LONG", "SHORT"] and state_tracker.should_trade(decision):
-                amount = round((usdt_balance * 0.1) / current_price, 2)
-                if amount < 0.1:
-                    log("⚠️ Balans çox aşağıdır, əməliyyat atlandı")
-                    continue
+            amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
+            if amount < 0.1:
+                log("⚠️ Balans çox aşağıdır, əməliyyat atlandı")
+                continue
 
-                side = "buy" if decision == "LONG" else "sell"
+            side = "buy" if decision == "LONG" else "sell"
+
+            if decision in ["LONG", "SHORT"]:
                 order = execute_trade(exchange, symbol, side, amount)
                 state_tracker.update_position(decision)
-                log(f"📌 Mövqe yeniləndi: {decision} | Miqdar: {amount} TON")
-
+                log(f"📌 Mövqe yeniləndi və icra edildi: {decision} | Miqdar: {amount} TON")
             elif decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
-            else:
-                log("🟡 Eyni mövqe mövcuddur, ticarət atlanır")
 
             if 'info' in order and 'profit' in order['info']:
                 pnl = float(order['info']['profit'])
