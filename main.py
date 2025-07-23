@@ -49,7 +49,7 @@ state_tracker = StateTracker()
 
 # === Bot Core Loop ===
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (Candle mode + Dynamic amount)")
+    log("🚀 GATE PERP BOT başladı (Trend + Candle + Cooldown)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -94,23 +94,36 @@ def run_bot():
                 f"EMA7: {indicators['ema_fast']}\n"
                 f"EMA21: {indicators['ema_slow']}\n"
                 f"RSI: {indicators['rsi']}\n"
-                f"📌 Siqnal: <b>{decision}</b>"
+                f"📌 Siqnal: <b>{decision}</b>\n"
+                f"Mövcud Mövqe: {state_tracker.get_position()}"
             )
             send_telegram_message(message)
 
-            amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
+            amount = max(round((usdt_balance * 0.1) / current_price, 2), 2)
             if amount < 0.1:
                 log("⚠️ Balans çox aşağıdır, əməliyyat atlandı")
                 continue
 
-            side = "buy" if decision == "LONG" else "sell"
+            active_position = state_tracker.get_position()
 
-            if decision in ["LONG", "SHORT"]:
+            if decision == "NO_ACTION":
+                log("🟡 NO_ACTION: Mövqe açılmadı")
+                continue
+
+            if decision != active_position:
+                if state_tracker.can_close_position():
+                    side = "buy" if decision == "LONG" else "sell"
+                    order = execute_trade(exchange, symbol, side, amount)
+                    state_tracker.update_position(decision)
+                    log(f"📌 Mövqe dəyişdi və yeniləndi: {decision} | Miqdar: {amount} TON")
+                else:
+                    log("⏳ Mövqe hələ qorunur, əks siqnal üçün vaxt lazım")
+            else:
+                # Mövqe eyni istiqamətdədirsə, artır
+                side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, amount)
                 state_tracker.update_position(decision)
-                log(f"📌 Mövqe yeniləndi və icra edildi: {decision} | Miqdar: {amount} TON")
-            elif decision == "NO_ACTION":
-                log("🟡 NO_ACTION: Mövqe açılmadı")
+                log(f"🔁 Mövqe artırıldı: {decision} | Miqdar: {amount} TON")
 
             if 'info' in order and 'profit' in order['info']:
                 pnl = float(order['info']['profit'])
