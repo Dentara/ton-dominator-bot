@@ -112,7 +112,7 @@ def run_bot():
                 continue
 
             if decision != active_position:
-                if state_tracker.can_close_position():
+                if active_position == "NONE" or state_tracker.can_close_position():
                     side = "buy" if decision == "LONG" else "sell"
                     order = execute_trade(exchange, symbol, side, amount)
                     state_tracker.update_position(decision)
