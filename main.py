@@ -6,18 +6,23 @@ from ai.strategy_manager import StrategyManager
 from ai.state_tracker import StateTracker
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
+from utils.telegram_notifier import send_telegram_message
 
 # === Logger ===
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now}] {msg}")
+    line = f"[{now}] {msg}"
+    print(line)
+    send_telegram_message(line)  # Telegrama da göndərilir
+
+log("🔄 BOT FAYLI BAŞLADI")
 
 # === API Keys ===
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
-    log("❌ API açarları tapılmadı!")
+    log(f"❌ API açarları tapılmadı! API_KEY: {api_key}, API_SECRET: {api_secret}")
     exit(1)
 
 # === Exchange Setup ===
@@ -44,8 +49,6 @@ price_history = []
 strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
-
-from utils.telegram_notifier import send_telegram_message
 
 # === Bot Core Loop ===
 def run_bot():
@@ -76,13 +79,22 @@ def run_bot():
 
             decision = strategy.decide(price_history)
             indicators = strategy.get_indicators(price_history)
-            log(f"📊 EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}, Siqnal: {decision}")
+
+            message = (
+                f"📊 <b>TON ANALİZ</b>\n"
+                f"EMA7: {indicators['ema_fast']}\n"
+                f"EMA21: {indicators['ema_slow']}\n"
+                f"RSI: {indicators['rsi']}\n"
+                f"📌 Siqnal: <b>{decision}</b>"
+            )
+            send_telegram_message(message)
 
             order = {}
             if decision in ["LONG", "SHORT"] and state_tracker.should_trade(decision):
                 side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, base_amount)
                 state_tracker.update_position(decision)
+                log(f"📌 Mövqe yeniləndi: {decision}")
             elif decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
             else:
@@ -92,12 +104,11 @@ def run_bot():
                 pnl = float(order['info']['profit'])
                 risk_manager.update_pnl(pnl)
 
-            time.sleep(60)  # 1 dəqiqə fasilə
+            time.sleep(60)
 
         except Exception as e:
             log(f"❗️ Dövr xətası: {e}")
             time.sleep(30)
 
 # === Entry Point ===
-if __name__ == "__main__":
-    run_bot()
+run_bot()
