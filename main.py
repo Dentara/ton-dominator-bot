@@ -99,7 +99,7 @@ def run_bot():
             )
             send_telegram_message(message)
 
-            amount = max(round((usdt_balance * 0.1) / current_price, 2), 2)
+            amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
             if amount < 0.1:
                 log("⚠️ Balans çox aşağıdır, əməliyyat atlandı")
                 continue
