@@ -105,6 +105,7 @@ def run_bot():
                 continue
 
             active_position = state_tracker.get_position()
+            order = {}  # 🔧 fix: order əvvəlcədən tanımlanır
 
             if decision == "NO_ACTION":
                 log("🟡 NO_ACTION: Mövqe açılmadı")
