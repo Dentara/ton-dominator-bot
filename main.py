@@ -70,8 +70,12 @@ def run_bot():
 
             log(f"💰 Cari TON qiyməti: {price}")
 
-            balance_info = exchange.fetch_balance({'type': 'contract'})
-            usdt_balance = balance_info['total']['USDT']
+            try:
+                balance_info = exchange.fetch_balance()
+                usdt_balance = balance_info['total'].get('USDT', 0)
+            except Exception as e:
+                log(f"❗ Balance oxuma xətası: {e}")
+                usdt_balance = 0
 
             if risk_manager.is_risk_limit_exceeded(usdt_balance):
                 log("⛔ Risk limiti aşılıb, ticarət dayandırılır")
