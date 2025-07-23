@@ -13,7 +13,7 @@ def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{now}] {msg}"
     print(line)
-    send_telegram_message(line)  # Telegrama da göndərilir
+    send_telegram_message(line)
 
 log("🔄 BOT FAYLI BAŞLADI")
 
@@ -32,7 +32,7 @@ try:
         'secret': api_secret,
         'enableRateLimit': True,
         'options': {
-            'defaultType': 'future'  # Əvvəl 'perpetual' idi
+            'defaultType': 'swap'  # Futures (perpetual) balans üçün
         }
     })
     log("✅ Exchange uğurla yaradıldı")
@@ -71,9 +71,9 @@ def run_bot():
             log(f"💰 Cari TON qiyməti: {price}")
 
             try:
-                balance_info = exchange.fetch_balance()
+                balance_info = exchange.fetch_balance({"type": "swap"})
                 usdt_balance = balance_info['total'].get('USDT', 0)
-                log(f"💳 Balans: {usdt_balance} USDT")
+                log(f"💳 Futures Balans: {usdt_balance} USDT")
             except Exception as e:
                 log(f"❗ Balance oxuma xətası: {e}")
                 usdt_balance = 0
