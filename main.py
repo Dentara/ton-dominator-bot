@@ -91,7 +91,7 @@ def run_bot():
                 break
 
             # === Lokal Strategiya Qərarı
-            local_decision = strategy.decide(close_prices, oh1cv)
+            local_decision = strategy.decide(close_prices, ohlcv)
             indicators = strategy.get_indicators(close_prices)
 
             # === Xəbər Sentimenti
