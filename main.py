@@ -7,6 +7,7 @@ from ai.state_tracker import StateTracker
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 from utils.telegram_notifier import send_telegram_message
+from ai.gpt_assistant import ask_gpt  # ✅ GPT əlavə edildi
 
 # === Logger ===
 def log(msg):
@@ -31,9 +32,7 @@ try:
         'apiKey': api_key,
         'secret': api_secret,
         'enableRateLimit': True,
-        'options': {
-            'defaultType': 'swap'
-        }
+        'options': {'defaultType': 'swap'}
     })
     log("✅ Exchange uğurla yaradıldı")
 except Exception as e:
@@ -49,7 +48,7 @@ state_tracker = StateTracker()
 
 # === Bot Core Loop ===
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (Trend + Candle + Cooldown + Debug)")
+    log("🚀 GATE PERP BOT başladı (Trend + Candle + GPT + Cooldown)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -86,15 +85,26 @@ def run_bot():
                 log("⛔ Risk limiti aşılıb, ticarət dayandırılır")
                 break
 
+            # === Strategiya qərarı (local və GPT) ===
             decision = strategy.decide(close_prices)
             indicators = strategy.get_indicators(close_prices)
+
+            # === GPT ilə əlavə analiz (istəyə bağlı) ===
+            gpt_msg = (
+                f"1 dəqiqəlik TON/USDT qiymətləri ilə işləyirik.\n"
+                f"Son qiymət: {current_price}\n"
+                f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}\n"
+                f"Bu vəziyyətdə ticarət qərarın nə olar? Qısa izahla cavab ver."
+            )
+            gpt_reply = ask_gpt(gpt_msg)
 
             debug_message = (
                 f"🔍 <b>STRATEGIYA DEBUG</b>\n"
                 f"EMA7: {indicators['ema_fast']}\n"
                 f"EMA21: {indicators['ema_slow']}\n"
                 f"RSI: {indicators['rsi']}\n"
-                f"📌 Qərar (decision): <b>{decision}</b>\n"
+                f"📌 Qərar (local): <b>{decision}</b>\n"
+                f"🧠 GPT Analiz:\n{gpt_reply}\n"
                 f"📎 Cari Mövqe: {state_tracker.get_position()}"
             )
             send_telegram_message(debug_message)
