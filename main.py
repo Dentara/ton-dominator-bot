@@ -129,7 +129,7 @@ def run_bot():
                 f"📌 Local qərar: {local_decision}, 🧠 GPT qərar: {gpt_decision}\n"
                 f"✅ Final qərar: <b>{decision}</b>"
             )
-            notify(debug_message, level="debug")
+            notify(debug_message, level="info")
 
             amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
             if amount < 0.1:
