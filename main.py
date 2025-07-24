@@ -4,13 +4,13 @@ import ccxt
 from datetime import datetime
 from ai.strategy_manager import StrategyManager
 from ai.state_tracker import StateTracker
-from ai.sentiment_analyzer import get_sentiment_score  # ✅ Sentiment inteqrasiyası
+from ai.sentiment_analyzer import get_sentiment_score
 from ai.gpt_assistant import ask_gpt
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 from utils.telegram_notifier import send_telegram_message
 
-DEBUG_MODE = False  # Sadəcə test zamanı True et
+DEBUG_MODE = False
 
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
@@ -25,7 +25,7 @@ def log(msg):
 
 log("🔄 BOT FAYLI BAŞLADI")
 
-# === API Açarları
+# === API açarları
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
@@ -33,7 +33,7 @@ if not api_key or not api_secret:
     log("❌ API açarları tapılmadı!")
     exit(1)
 
-# === Exchange Ayarları
+# === Exchange ayarları
 try:
     exchange = ccxt.gate({
         'apiKey': api_key,
@@ -53,7 +53,7 @@ risk_manager = RiskManager()
 state_tracker = StateTracker()
 
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (GPT + Strategiya + Sentiment)")
+    log("🚀 GATE PERP BOT başladı (GPT + Strategiya + Sentiment + Margin Balance)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -65,6 +65,7 @@ def run_bot():
 
     while True:
         try:
+            # === Yeni candle
             ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=30)
             last_candle = ohlcv[-1]
             candle_time = last_candle[0]
@@ -78,60 +79,55 @@ def run_bot():
             last_candle_time = candle_time
             log(f"🕐 Yeni 1 dəqiqəlik candle gəldi | Qiymət: {current_price}")
 
-        try:
-                # === Yeni real marginə uyğun balans hesablaması
-            balance_info = exchange.fetch_balance({"type": "swap"})
-            total_balance = balance_info['total'].get('USDT', 0)
-            free_balance = balance_info['free'].get('USDT', 0)
+            # === Real usable balance hesabla
+            try:
+                balance_info = exchange.fetch_balance({"type": "swap"})
+                total_balance = balance_info['total'].get('USDT', 0)
+                free_balance = balance_info['free'].get('USDT', 0)
 
-               # Açıq mövqeləri yoxla
-            positions = exchange.fetch_positions()
-            total_other_margin = 0.0
-            other_positions_info = ""
+                positions = exchange.fetch_positions()
+                total_other_margin = 0.0
+                other_positions_info = ""
 
-            for pos in positions:
-                if float(pos.get('contracts', 0)) > 0:
-                    symbol = pos['symbol']
-                    margin = float(pos.get('initialMargin', 0.0))
-                    side = pos.get('side', '')
-                    contracts = pos.get('contracts')
+                for pos in positions:
+                    if float(pos.get('contracts', 0)) > 0:
+                        pos_symbol = pos['symbol']
+                        margin = float(pos.get('initialMargin', 0.0))
+                        side = pos.get('side', '')
+                        contracts = pos.get('contracts')
 
-                    if symbol != 'TON/USDT:USDT':
-                        total_other_margin += margin
-                        other_positions_info += f"🔒 {symbol} | {side} | Miqdar: {contracts} | Margin: {margin}\n"
+                        if pos_symbol != 'TON/USDT:USDT':
+                            total_other_margin += margin
+                            other_positions_info += f"🔒 {pos_symbol} | {side} | Miqdar: {contracts} | Margin: {margin}\n"
 
-              # Hesablanmış usable balance
-            usable_balance = free_balance - total_other_margin
-            if usable_balance < 0:
+                usable_balance = free_balance - total_other_margin
+                if usable_balance < 0:
+                    usable_balance = 0
+
+                log(f"💳 Ümumi Balans: {total_balance} USDT")
+                log(f"🧮 Marginə uyğun istifadə oluna bilən balans: {usable_balance} USDT")
+
+                if other_positions_info:
+                    log("📌 Bot xarici açıq mövqelər:\n" + other_positions_info)
+
+            except Exception as e:
+                log(f"❗ Balance oxuma xətası: {e}")
                 usable_balance = 0
 
-              # Telegram mesajları
-            log(f"💳 Ümumi Balans: {total_balance} USDT")
-            log(f"🧮 Marginə uyğun istifadə oluna bilən balans: {usable_balance} USDT")
-
-            if other_positions_info:
-                log("📌 Bot xarici açıq mövqelər:\n" + other_positions_info)
-            except Exception as e:
-                log(f"❗ Balans oxuma xətası: {e}")
-                usdt_balance = 0
-
-            if risk_manager.is_risk_limit_exceeded(usdt_balance):
+            if risk_manager.is_risk_limit_exceeded(usable_balance):
                 log("⛔ Risk limiti aşılıb, bot dayandırılır")
                 break
 
-            # === Lokal Strategiya Qərarı
+            # === Strategiya və GPT qərarları
             local_decision = strategy.decide(close_prices, ohlcv)
             indicators = strategy.get_indicators(close_prices)
+            sentiment = get_sentiment_score()
 
-            # === Xəbər Sentimenti
-            sentiment = get_sentiment_score()  # "bullish", "bearish", "neutral"
-
-            # === GPT Qərarı
             gpt_msg = (
                 f"TON/USDT texniki analiz:\n"
                 f"Qiymət: {current_price}, EMA7: {indicators['ema_fast']}, "
                 f"EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}\n"
-                f"Xəbərlərə əsaslanan sentiment: {sentiment}\n"
+                f"Xəbər sentimenti: {sentiment}\n"
                 f"Bu kontekstdə ticarət qərarın nə olar? (LONG / SHORT / NO_ACTION)"
             )
             gpt_reply = ask_gpt(gpt_msg)
@@ -151,25 +147,25 @@ def run_bot():
             else:
                 decision = "NO_ACTION"
 
-            debug_message = (
+            notify(
                 f"🔍 <b>STRATEGIYA DEBUG</b>\n"
                 f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}\n"
-                f"RSI: {indicators['rsi']}, Xəbər sentimenti: {sentiment}\n"
-                f"📌 Local qərar: {local_decision}, 🧠 GPT qərar: {gpt_decision}\n"
-                f"✅ Final qərar: <b>{decision}</b>"
+                f"RSI: {indicators['rsi']}, Sentiment: {sentiment}\n"
+                f"📌 Local: {local_decision}, GPT: {gpt_decision}\n"
+                f"✅ Final: {decision}",
+                level="info"
             )
-            notify(debug_message, level="info")
 
             amount = max(round((usable_balance * 0.1) / current_price, 2), 1)
             if amount < 0.1:
-                notify("⚠️ Balans azdır, əməliyyat atlanır", level="info")
+                notify("⚠️ Balans azdır, əməliyyat atlanır")
                 continue
 
             active_position = state_tracker.get_position()
             order = {}
 
             if decision == "NO_ACTION":
-                notify("🟡 NO_ACTION: Heç bir əməliyyat aparılmadı", level="status")
+                notify("🟡 NO_ACTION: Heç bir əməliyyat aparılmadı")
                 continue
 
             if decision != active_position:
@@ -179,7 +175,7 @@ def run_bot():
                     state_tracker.update_position(decision)
                     notify(f"📌 Yeni mövqe açıldı: {decision} | {amount} TON")
                 else:
-                    notify("⏳ Mövqe qorunur, əks siqnal üçün cooldown gözlənir")
+                    notify("⏳ Mövqe qorunur, cooldown aktivdir")
             else:
                 side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, amount)
@@ -193,7 +189,7 @@ def run_bot():
             time.sleep(5)
 
         except Exception as e:
-            notify(f"❗ Xəta baş verdi: {e}")
+            notify(f"❗️ Dövr xətası: {e}")
             time.sleep(10)
 
 # === Başlat
