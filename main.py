@@ -79,9 +79,38 @@ def run_bot():
             log(f"🕐 Yeni 1 dəqiqəlik candle gəldi | Qiymət: {current_price}")
 
             try:
-                balance_info = exchange.fetch_balance({"type": "swap"})
-                usdt_balance = balance_info['total'].get('USDT', 0)
-                log(f"💳 Balans: {usdt_balance} USDT")
+                # === Yeni real marginə uyğun balans hesablaması
+            balance_info = exchange.fetch_balance({"type": "swap"})
+            total_balance = balance_info['total'].get('USDT', 0)
+            free_balance = balance_info['free'].get('USDT', 0)
+
+               # Açıq mövqeləri yoxla
+            positions = exchange.fetch_positions()
+            total_other_margin = 0.0
+            other_positions_info = ""
+
+            for pos in positions:
+                if float(pos.get('contracts', 0)) > 0:
+                    symbol = pos['symbol']
+                    margin = float(pos.get('initialMargin', 0.0))
+                    side = pos.get('side', '')
+                    contracts = pos.get('contracts')
+
+                    if symbol != 'TON/USDT:USDT':
+                        total_other_margin += margin
+                        other_positions_info += f"🔒 {symbol} | {side} | Miqdar: {contracts} | Margin: {margin}\n"
+
+              # Hesablanmış usable balance
+            usable_balance = free_balance - total_other_margin
+            if usable_balance < 0:
+                usable_balance = 0
+
+              # Telegram mesajları
+            log(f"💳 Ümumi Balans: {total_balance} USDT")
+            log(f"🧮 Marginə uyğun istifadə oluna bilən balans: {usable_balance} USDT")
+
+            if other_positions_info:
+                log("📌 Bot xarici açıq mövqelər:\n" + other_positions_info)
             except Exception as e:
                 log(f"❗ Balans oxuma xətası: {e}")
                 usdt_balance = 0
