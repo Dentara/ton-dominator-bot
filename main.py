@@ -79,26 +79,25 @@ def run_bot():
             last_candle_time = candle_time
             log(f"🕐 Yeni 1 dəqiqəlik candle gəldi | Qiymət: {current_price}")
 
-            # === Real usable balance hesabla
+            # === Real usable balance
             try:
                 balance_info = exchange.fetch_balance({"type": "swap"})
-                total_balance = balance_info['total'].get('USDT', 0)
-                free_balance = balance_info['free'].get('USDT', 0)
+                total_balance = balance_info['total'].get('USDT', 0) or 0
+                free_balance = balance_info['free'].get('USDT', 0) or 0
 
                 positions = exchange.fetch_positions()
                 total_other_margin = 0.0
                 other_positions_info = ""
 
                 for pos in positions:
-                    if float(pos.get('contracts', 0)) > 0:
-                        pos_symbol = pos['symbol']
-                        margin = float(pos.get('initialMargin', 0.0))
-                        side = pos.get('side', '')
-                        contracts = pos.get('contracts')
+                    symbol_ = pos.get('symbol', '')
+                    contracts = float(pos.get('contracts') or 0)
+                    margin = float(pos.get('initialMargin') or 0)
+                    side = pos.get('side') or ''
 
-                        if pos_symbol != 'TON/USDT:USDT':
-                            total_other_margin += margin
-                            other_positions_info += f"🔒 {pos_symbol} | {side} | Miqdar: {contracts} | Margin: {margin}\n"
+                    if contracts > 0 and symbol_ != 'TON/USDT:USDT':
+                        total_other_margin += margin
+                        other_positions_info += f"🔒 {symbol_} | {side} | Miqdar: {contracts} | Margin: {margin}\n"
 
                 usable_balance = free_balance - total_other_margin
                 if usable_balance < 0:
@@ -118,7 +117,6 @@ def run_bot():
                 log("⛔ Risk limiti aşılıb, bot dayandırılır")
                 break
 
-            # === Strategiya və GPT qərarları
             local_decision = strategy.decide(close_prices, ohlcv)
             indicators = strategy.get_indicators(close_prices)
             sentiment = get_sentiment_score()
