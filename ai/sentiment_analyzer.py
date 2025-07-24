@@ -1,8 +1,7 @@
 import requests
 
-def get_sentiment_score():
+def get_sentiment_score() -> str:
     try:
-        # Simulyasiya üçün: real API-lə əvəz ediləcək (məs. sentiment api, gnews, CoinMarketCal, LunarCrush)
         url = "https://cryptopanic.com/api/v1/posts/?auth_token=demo&currencies=TON"
         response = requests.get(url)
         data = response.json()
