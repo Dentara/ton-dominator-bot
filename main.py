@@ -160,7 +160,7 @@ def run_bot():
             )
             notify(debug_message, level="info")
 
-            amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
+            amount = max(round((usable_balance * 0.1) / current_price, 2), 1)
             if amount < 0.1:
                 notify("⚠️ Balans azdır, əməliyyat atlanır", level="info")
                 continue
