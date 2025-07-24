@@ -4,14 +4,14 @@ import ccxt
 from datetime import datetime
 from ai.strategy_manager import StrategyManager
 from ai.state_tracker import StateTracker
+from ai.sentiment_analyzer import get_sentiment_score  # ✅ Sentiment inteqrasiyası
+from ai.gpt_assistant import ask_gpt
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 from utils.telegram_notifier import send_telegram_message
-from ai.gpt_assistant import ask_gpt
 
-DEBUG_MODE = False  # Debug mesajları göstərmək istəsən True et
+DEBUG_MODE = False  # Sadəcə test zamanı True et
 
-# === Logger və Telegram bildirişləri ===
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -25,14 +25,15 @@ def log(msg):
 
 log("🔄 BOT FAYLI BAŞLADI")
 
-# === API açarları
+# === API Açarları
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
+
 if not api_key or not api_secret:
     log("❌ API açarları tapılmadı!")
     exit(1)
 
-# === Exchange konfiqurasiya
+# === Exchange Ayarları
 try:
     exchange = ccxt.gate({
         'apiKey': api_key,
@@ -45,16 +46,14 @@ except Exception as e:
     log(f"❌ Exchange xətası: {e}")
     exit(1)
 
-# === Parametrlər
 symbol = 'TON/USDT:USDT'
 leverage = 3
 strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
 
-# === Bot Dövrü
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (GPT + Strategy + Cooldown)")
+    log("🚀 GATE PERP BOT başladı (GPT + Strategiya + Sentiment)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -82,28 +81,29 @@ def run_bot():
             try:
                 balance_info = exchange.fetch_balance({"type": "swap"})
                 usdt_balance = balance_info['total'].get('USDT', 0)
-                log(f"💳 Futures Balans: {usdt_balance} USDT")
+                log(f"💳 Balans: {usdt_balance} USDT")
             except Exception as e:
-                log(f"❗ Balance oxuma xətası: {e}")
+                log(f"❗ Balans oxuma xətası: {e}")
                 usdt_balance = 0
 
             if risk_manager.is_risk_limit_exceeded(usdt_balance):
-                log("⛔ Risk limiti aşılıb, ticarət dayandırılır")
+                log("⛔ Risk limiti aşılıb, bot dayandırılır")
                 break
 
-            # === Strategiya qərarı
+            # === Lokal Strategiya Qərarı
             local_decision = strategy.decide(close_prices)
             indicators = strategy.get_indicators(close_prices)
 
-            # === Xəbər sentimenti (placeholder, növbəti mərhələdə doldurulacaq)
-            sentiment = "neutral"  # Bura get_sentiment_score() inteqrasiya ediləcək
+            # === Xəbər Sentimenti
+            sentiment = get_sentiment_score()  # "bullish", "bearish", "neutral"
 
-            # === GPT qərarı
+            # === GPT Qərarı
             gpt_msg = (
-                f"1 dəqiqəlik TON/USDT texniki analiz:\n"
-                f"Qiymət: {current_price}, EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}\n"
-                f"Xəbər sentimenti: {sentiment}\n"
-                f"Sənin ticarət qərarın nə olar? Qısa şəkildə LONG / SHORT / NO_ACTION cavabı ver."
+                f"TON/USDT texniki analiz:\n"
+                f"Qiymət: {current_price}, EMA7: {indicators['ema_fast']}, "
+                f"EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}\n"
+                f"Xəbərlərə əsaslanan sentiment: {sentiment}\n"
+                f"Bu kontekstdə ticarət qərarın nə olar? (LONG / SHORT / NO_ACTION)"
             )
             gpt_reply = ask_gpt(gpt_msg)
 
@@ -117,7 +117,6 @@ def run_bot():
 
             gpt_decision = parse_gpt_decision(gpt_reply)
 
-            # === Final qərar – yalnız hər ikisi eyni olarsa
             if local_decision == gpt_decision and local_decision != "NO_ACTION":
                 decision = local_decision
             else:
@@ -125,27 +124,23 @@ def run_bot():
 
             debug_message = (
                 f"🔍 <b>STRATEGIYA DEBUG</b>\n"
-                f"EMA7: {indicators['ema_fast']}\n"
-                f"EMA21: {indicators['ema_slow']}\n"
-                f"RSI: {indicators['rsi']}\n"
-                f"📌 Qərar (local): {local_decision}\n"
-                f"🧠 GPT Analiz:\n{gpt_reply}\n"
-                f"🧩 Qərar (final): <b>{decision}</b>\n"
-                f"📎 Cari Mövqe: {state_tracker.get_position()}"
+                f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}\n"
+                f"RSI: {indicators['rsi']}, Xəbər sentimenti: {sentiment}\n"
+                f"📌 Local qərar: {local_decision}, 🧠 GPT qərar: {gpt_decision}\n"
+                f"✅ Final qərar: <b>{decision}</b>"
             )
             notify(debug_message, level="debug")
 
-            # === Əməliyyat qərarı
             amount = max(round((usdt_balance * 0.1) / current_price, 2), 1)
             if amount < 0.1:
-                notify("⚠️ Balans çox aşağıdır, əməliyyat atlandı", level="info")
+                notify("⚠️ Balans azdır, əməliyyat atlanır", level="info")
                 continue
 
             active_position = state_tracker.get_position()
             order = {}
 
             if decision == "NO_ACTION":
-                notify("🟡 NO_ACTION: Mövqe açılmadı", level="status")
+                notify("🟡 NO_ACTION: Heç bir əməliyyat aparılmadı", level="status")
                 continue
 
             if decision != active_position:
@@ -153,14 +148,14 @@ def run_bot():
                     side = "buy" if decision == "LONG" else "sell"
                     order = execute_trade(exchange, symbol, side, amount)
                     state_tracker.update_position(decision)
-                    notify(f"📌 Mövqe dəyişdi: {decision} | Miqdar: {amount} TON")
+                    notify(f"📌 Yeni mövqe açıldı: {decision} | {amount} TON")
                 else:
-                    notify("⏳ Mövqe qorunur, əks siqnal üçün vaxt lazımdır")
+                    notify("⏳ Mövqe qorunur, əks siqnal üçün cooldown gözlənir")
             else:
                 side = "buy" if decision == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, amount)
                 state_tracker.update_position(decision)
-                notify(f"🔁 Mövqe artırıldı: {decision} | Miqdar: {amount} TON")
+                notify(f"🔁 Mövqe artırıldı: {decision} | {amount} TON")
 
             if 'info' in order and 'profit' in order['info']:
                 pnl = float(order['info']['profit'])
@@ -169,7 +164,7 @@ def run_bot():
             time.sleep(5)
 
         except Exception as e:
-            notify(f"❗ Dövr xətası: {e}")
+            notify(f"❗ Xəta baş verdi: {e}")
             time.sleep(10)
 
 # === Başlat
