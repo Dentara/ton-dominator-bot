@@ -7,6 +7,7 @@ from ai.state_tracker import StateTracker
 from ai.sentiment_analyzer import get_sentiment_score
 from ai.gpt_assistant import ask_gpt
 from ai.ta_engine import analyze_technicals
+from ai.pattern_recognizer import detect_pattern
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 from utils.telegram_notifier import send_telegram_message
@@ -85,7 +86,6 @@ def run_bot():
                 continue
             last_candle_time = candle_time
 
-            # === Balans və usable
             try:
                 balance_info = exchange.fetch_balance({"type": "swap"})
                 free_balance = balance_info['free'].get('USDT', 0) or 0
@@ -111,25 +111,27 @@ def run_bot():
                 notify("⛔ Risk limiti aşılıb")
                 break
 
-            # === Strategiya və GPT qərarı
             local_decision = strategy.decide(close_prices, ohlcv)
             indicators = strategy.get_indicators(close_prices)
             sentiment = get_sentiment_score()
+            pattern = detect_pattern(ohlcv)
             decision_1h, decision_4h = get_higher_tf_context(symbol)
+            current_position = state_tracker.get_position()
 
             gpt_msg = (
                 f"TON/USDT üçün texniki analiz:\n"
                 f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, "
-                f"RSI: {indicators['rsi']}, Pattern: unknown\n"
+                f"RSI: {indicators['rsi']}, Pattern: {pattern}\n"
                 f"Sentiment: {sentiment}, 1h: {decision_1h}, 4h: {decision_4h}\n"
-                f"Açıq mövqe: {state_tracker.get_position()}\n"
+                f"Açıq mövqe: {current_position}\n"
                 f"Yalnız bir sözlə cavab ver: LONG, SHORT və ya NO_ACTION."
             )
+
             gpt_decision = ask_gpt(gpt_msg).strip().upper()
             if gpt_decision not in ["LONG", "SHORT"]:
                 gpt_decision = "NO_ACTION"
 
-            # === Final qərar
+            # Qərar
             if gpt_decision == "LONG" and decision_1h != "sell" and decision_4h != "sell":
                 decision = "LONG"
             elif gpt_decision == "SHORT" and decision_1h != "buy" and decision_4h != "buy":
