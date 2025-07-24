@@ -6,6 +6,7 @@ from ai.strategy_manager import StrategyManager
 from ai.state_tracker import StateTracker
 from ai.sentiment_analyzer import get_sentiment_score
 from ai.gpt_assistant import ask_gpt
+from ai.ta_engine import analyze_technicals
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 from utils.telegram_notifier import send_telegram_message
@@ -25,7 +26,7 @@ def log(msg):
 
 log("🔄 BOT FAYLI BAŞLADI")
 
-# === API açarları
+# === API
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
@@ -33,7 +34,6 @@ if not api_key or not api_secret:
     log("❌ API açarları tapılmadı!")
     exit(1)
 
-# === Exchange ayarları
 try:
     exchange = ccxt.gate({
         'apiKey': api_key,
@@ -52,8 +52,18 @@ strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
 
+def get_higher_tf_context(symbol):
+    try:
+        ohlcv_1h = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=30)
+        ohlcv_4h = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=30)
+        decision_1h = analyze_technicals(ohlcv_1h)
+        decision_4h = analyze_technicals(ohlcv_4h)
+        return decision_1h, decision_4h
+    except:
+        return "hold", "hold"
+
 def run_bot():
-    log("🚀 GATE PERP BOT başladı (GPT + Strategiya + Sentiment + Margin Balance)")
+    log("🚀 GATE PERP BOT başladı (GPT + Strategiya + Sentiment + 1h/4h Trend + Margin)")
 
     try:
         exchange.set_leverage(leverage, symbol)
@@ -65,7 +75,6 @@ def run_bot():
 
     while True:
         try:
-            # === Yeni candle
             ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=30)
             last_candle = ohlcv[-1]
             candle_time = last_candle[0]
@@ -78,8 +87,7 @@ def run_bot():
 
             last_candle_time = candle_time
             log(f"🕐 Yeni 1 dəqiqəlik candle gəldi | Qiymət: {current_price}")
-
-            # === Real usable balance
+                        # === Balans hesabla
             try:
                 balance_info = exchange.fetch_balance({"type": "swap"})
                 total_balance = balance_info['total'].get('USDT', 0) or 0
@@ -95,7 +103,7 @@ def run_bot():
                     margin = float(pos.get('initialMargin') or 0)
                     side = pos.get('side') or ''
 
-                    if contracts > 0 and symbol_ != 'TON/USDT:USDT':
+                    if contracts > 0 and symbol_ != symbol:
                         total_other_margin += margin
                         other_positions_info += f"🔒 {symbol_} | {side} | Miqdar: {contracts} | Margin: {margin}\n"
 
@@ -117,15 +125,19 @@ def run_bot():
                 log("⛔ Risk limiti aşılıb, bot dayandırılır")
                 break
 
+            # === Strategiya qərarı
             local_decision = strategy.decide(close_prices, ohlcv)
             indicators = strategy.get_indicators(close_prices)
             sentiment = get_sentiment_score()
+            decision_1h, decision_4h = get_higher_tf_context(symbol)
+            log(f"🧭 1h qərarı: {decision_1h}, 4h qərarı: {decision_4h}")
 
+            # === GPT
             gpt_msg = (
                 f"TON/USDT texniki analiz:\n"
                 f"Qiymət: {current_price}, EMA7: {indicators['ema_fast']}, "
                 f"EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}\n"
-                f"Xəbər sentimenti: {sentiment}\n"
+                f"Sentiment: {sentiment}\n"
                 f"Bu kontekstdə ticarət qərarın nə olar? (LONG / SHORT / NO_ACTION)"
             )
             gpt_reply = ask_gpt(gpt_msg)
@@ -140,7 +152,12 @@ def run_bot():
 
             gpt_decision = parse_gpt_decision(gpt_reply)
 
-            if local_decision == gpt_decision and local_decision != "NO_ACTION":
+            # === Final Qərar Məntiqi
+            if gpt_decision == "LONG" and decision_1h != "sell" and decision_4h != "sell":
+                decision = "LONG"
+            elif gpt_decision == "SHORT" and decision_1h != "buy" and decision_4h != "buy":
+                decision = "SHORT"
+            elif local_decision == gpt_decision and local_decision != "NO_ACTION":
                 decision = local_decision
             else:
                 decision = "NO_ACTION"
@@ -150,11 +167,12 @@ def run_bot():
                 f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}\n"
                 f"RSI: {indicators['rsi']}, Sentiment: {sentiment}\n"
                 f"📌 Local: {local_decision}, GPT: {gpt_decision}\n"
-                f"✅ Final: {decision}",
+                f"🧭 1h: {decision_1h}, 4h: {decision_4h}\n"
+                f"✅ Final: <b>{decision}</b>",
                 level="info"
             )
 
-            amount = max(round((usable_balance * 0.1) / current_price, 2), 1)
+            amount = max(round((usable_balance * 0.1) / current_price, 2), 5)
             if amount < 0.1:
                 notify("⚠️ Balans azdır, əməliyyat atlanır")
                 continue
