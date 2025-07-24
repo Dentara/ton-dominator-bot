@@ -7,8 +7,7 @@ from ai.state_tracker import StateTracker
 from utils.trade_executor import execute_trade
 from utils.risk_control import RiskManager
 from utils.telegram_notifier import send_telegram_message
-from ai.gpt_assistant import ask_gpt
-from ai.gpt_prompt_templates import advanced_prompt  # ✅ GPT prompt faylından sual şablonu
+from ai.gpt_assistant import ask_gpt  # ✅ GPT əlavə edildi
 
 # === Logger ===
 def log(msg):
@@ -86,25 +85,43 @@ def run_bot():
                 log("⛔ Risk limiti aşılıb, ticarət dayandırılır")
                 break
 
-            decision = strategy.decide(close_prices)
+            # === Strategiya qərarı (local və GPT) ===
+            local_decision = strategy.decide(close_prices)
             indicators = strategy.get_indicators(close_prices)
 
-            gpt_msg = advanced_prompt(
-                ema7=indicators['ema_fast'],
-                ema21=indicators['ema_slow'],
-                rsi=indicators['rsi'],
-                trend=strategy.trend_detector.detect_trend(close_prices),
-                price=current_price
+            # === GPT ilə əlavə analiz və qərar ===
+            gpt_msg = (
+                f"1 dəqiqəlik TON/USDT qiymətləri ilə işləyirik.\n"
+                f"Son qiymət: {current_price}\n"
+                f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, RSI: {indicators['rsi']}\n"
+                f"Bu vəziyyətdə ticarət qərarın nə olar? Qısa şəkildə LONG / SHORT / NO_ACTION kimi cavab ver."
             )
             gpt_reply = ask_gpt(gpt_msg)
+
+            def parse_gpt_decision(text: str) -> str:
+                lowered = text.lower()
+                if "long" in lowered:
+                    return "LONG"
+                elif "short" in lowered:
+                    return "SHORT"
+                return "NO_ACTION"
+
+            gpt_decision = parse_gpt_decision(gpt_reply)
+
+            # ✅ İkili təsdiq
+            if local_decision == gpt_decision and local_decision != "NO_ACTION":
+                decision = local_decision
+            else:
+                decision = "NO_ACTION"
 
             debug_message = (
                 f"🔍 <b>STRATEGIYA DEBUG</b>\n"
                 f"EMA7: {indicators['ema_fast']}\n"
                 f"EMA21: {indicators['ema_slow']}\n"
                 f"RSI: {indicators['rsi']}\n"
-                f"📌 Qərar (local): <b>{decision}</b>\n"
+                f"📌 Qərar (local): <b>{local_decision}</b>\n"
                 f"🧠 GPT Analiz:\n{gpt_reply}\n"
+                f"🧩 Qərar (final): <b>{decision}</b>\n"
                 f"📎 Cari Mövqe: {state_tracker.get_position()}"
             )
             send_telegram_message(debug_message)
