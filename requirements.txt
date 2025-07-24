@@ -4,3 +4,4 @@ numpy
 requests
 aiohttp
 openai
+python-dotenv
