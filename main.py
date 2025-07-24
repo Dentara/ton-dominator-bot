@@ -78,7 +78,7 @@ def run_bot():
             last_candle_time = candle_time
             log(f"🕐 Yeni 1 dəqiqəlik candle gəldi | Qiymət: {current_price}")
 
-            try:
+        try:
                 # === Yeni real marginə uyğun balans hesablaması
             balance_info = exchange.fetch_balance({"type": "swap"})
             total_balance = balance_info['total'].get('USDT', 0)
