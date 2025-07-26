@@ -2,23 +2,31 @@
 
 class StateTracker:
     def __init__(self):
-        self.last_position = None  # "LONG" or "SHORT"
-        self.candle_hold = 0       # Neçə candle-dır mövqe açıqdır
-        self.cooldown_required = 3 # Minimum candle sayı mövqe bağlanmadan öncə
+        self.positions = {}  # symbol => { "position": str, "hold": int }
 
-    def update_position(self, position: str):
-        if position == self.last_position:
-            self.candle_hold += 1
+        # Candle sayı limiti – istədikdə dəyişmək olar
+        self.cooldown_required = 3
+
+    def update_position(self, symbol: str, position: str):
+        if symbol not in self.positions:
+            self.positions[symbol] = {"position": position, "hold": 1}
         else:
-            self.last_position = position
-            self.candle_hold = 1
+            current = self.positions[symbol]
+            if current["position"] == position:
+                current["hold"] += 1
+            else:
+                self.positions[symbol] = {"position": position, "hold": 1}
 
-    def get_position(self) -> str:
-        return self.last_position or "NONE"
+    def get_position(self, symbol: str) -> str:
+        if symbol not in self.positions:
+            return "NONE"
+        return self.positions[symbol]["position"]
 
-    def can_close_position(self) -> bool:
-        return self.candle_hold >= self.cooldown_required
+    def can_close_position(self, symbol: str) -> bool:
+        if symbol not in self.positions:
+            return True
+        return self.positions[symbol]["hold"] >= self.cooldown_required
 
-    def reset(self):
-        self.last_position = None
-        self.candle_hold = 0
+    def reset(self, symbol: str):
+        if symbol in self.positions:
+            del self.positions[symbol]
