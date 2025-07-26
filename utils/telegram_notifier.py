@@ -3,13 +3,15 @@ import time
 
 TELEGRAM_TOKEN = "8044814129:AAGuUT5ORrNjEm26PzeSshLMsMxW2aymIf8"
 CHAT_ID = "91607116"
-last_msg_time = 0
+last_msg_time = 0  # Rate-limit üçün
 
 def send_telegram_message(text: str):
     global last_msg_time
     now = time.time()
-    if now - last_msg_time < 1.2:  # Telegram 1 msg/sec limiti
-        time.sleep(1.2)
+
+    # Telegram mesaj limiti (saniyədə max 1 mesaj)
+    if now - last_msg_time < 1.1:
+        time.sleep(1.1)
     last_msg_time = now
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -21,10 +23,7 @@ def send_telegram_message(text: str):
 
     try:
         response = requests.post(url, data=payload)
-        print(f"✅ Status kodu: {response.status_code}")
-        print(f"🔁 Cavab: {response.text}")
-
         if response.status_code != 200:
-            print(f"⚠️ Telegram mesajı göndərilə bilmədi!")
+            print(f"⚠️ Telegram mesajı göndərilə bilmədi: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"❌ Telegram göndəriş xətası: {e}")
+        print(f"❌ Telegram xəta: {e}")
