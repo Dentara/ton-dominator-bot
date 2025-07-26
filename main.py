@@ -116,7 +116,7 @@ def run_bot():
                 sentiment = get_sentiment_score()
                 pattern = detect_pattern(ohlcv)
                 decision_1h, decision_4h = get_higher_tf_context(symbol)
-                current_position = state_tracker.get_position()
+                current_position = state_tracker.get_position(symbol)
 
                 gpt_msg = (
                     f"{symbol} üçün texniki analiz:\n"
@@ -147,24 +147,24 @@ def run_bot():
                     notify(f"⚠️ {symbol} üçün balans azdır", level="silent")
                     continue
 
-                active_position = state_tracker.get_position()
+                active_position = state_tracker.get_position(symbol)
                 order = {}
 
                 if decision == "NO_ACTION":
                     continue
 
                 if decision != active_position:
-                    if active_position == "NONE" or state_tracker.can_close_position():
+                    if active_position == "NONE" or state_tracker.can_close_position(symbol):
                         side = "buy" if decision == "LONG" else "sell"
                         order = execute_trade(exchange, symbol, side, amount)
-                        state_tracker.update_position(decision)
+                        state_tracker.update_position(symbol, decision)
                         notify(f"✅ Yeni mövqe ({symbol}): {decision} | {amount}")
                     else:
                         continue
                 else:
                     side = "buy" if decision == "LONG" else "sell"
                     order = execute_trade(exchange, symbol, side, amount)
-                    state_tracker.update_position(decision)
+                    state_tracker.update_position(symbol, decision)
                     notify(f"➕ Mövqe artırıldı ({symbol}): {decision} | {amount}")
 
                 if 'info' in order and 'profit' in order['info']:
