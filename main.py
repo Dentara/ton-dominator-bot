@@ -47,7 +47,7 @@ except Exception as e:
     exit(1)
 
 # ✅ BURADA GT əlavə olundu
-symbols = ['TON/USDT:USDT', 'CAKE/USDT:USDT', 'GT/USDT:USDT']
+symbols = ['TON/USDT:USDT', 'CAKE/USDT:USDT', 'GT/USDT:USDT', 'XRP/USDT:USDT']
 
 leverage = 3
 strategy = StrategyManager()
