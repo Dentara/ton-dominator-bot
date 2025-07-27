@@ -46,7 +46,9 @@ except Exception as e:
     log(f"❌ Exchange xətası: {e}")
     exit(1)
 
-symbols = ['TON/USDT:USDT', 'CAKE/USDT:USDT']
+# ✅ BURADA GT əlavə olundu
+symbols = ['TON/USDT:USDT', 'CAKE/USDT:USDT', 'GT/USDT:USDT']
+
 leverage = 3
 strategy = StrategyManager()
 risk_manager = RiskManager()
