@@ -13,7 +13,6 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
-
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -21,11 +20,9 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
-
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
-
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -60,7 +57,6 @@ for symbol in TOKENS:
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
-
 def get_trend(symbol, timeframe='1h'):
     try:
         candles = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=30)
@@ -73,7 +69,6 @@ def get_trend(symbol, timeframe='1h'):
             return "sideways"
     except:
         return "unknown"
-
 
 def run_bot():
     log("🚀 GPT əsaslı çox tokenli futures bot başladı")
@@ -109,17 +104,14 @@ def run_bot():
                 trend_1h = get_trend(symbol, '1h')
                 trend_4h = get_trend(symbol, '4h')
 
-                # EMA/RSI hesabla
                 indicators = compute_ema_rsi(ohlcv)
                 ema20 = indicators.get("EMA20") if indicators else "?"
                 ema50 = indicators.get("EMA50") if indicators else "?"
                 rsi = indicators.get("RSI") if indicators else "?"
 
-                # BTC sentiment al
                 btc_trend_1h = get_trend("BTC/USDT:USDT", '1h')
                 btc_trend_4h = get_trend("BTC/USDT:USDT", '4h')
 
-                # Qısa tarixçə
                 last_decision = DECISION_MEMORY[symbol]["last_decision"]
                 last_time_diff = int((time.time() - DECISION_MEMORY[symbol]["timestamp"]) / 60)
 
@@ -134,12 +126,16 @@ def run_bot():
                     f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
                 )
 
+                send_telegram_message(f"🧠 [GPT MSG - {symbol}]:\n{gpt_msg}")
                 raw_response = ask_gpt(gpt_msg)
+                send_telegram_message(f"🤖 [GPT CAVAB - {symbol}]: {raw_response}")
+
+                if raw_response.startswith("[GPT XƏTASI]"):
+                    send_telegram_message(f"❌ GPT XƏTASI ({symbol}): {raw_response}")
+
                 decision = raw_response.strip().upper()
                 if decision not in ["LONG", "SHORT"]:
                     decision = "NO_ACTION"
-
-                send_telegram_message(f"📍 {symbol} GPT qərarı: {decision}")
 
                 DECISION_MEMORY[symbol] = {
                     "last_decision": decision,
@@ -165,6 +161,5 @@ def run_bot():
                 send_telegram_message(error_msg)
 
         time.sleep(5)
-
 
 run_bot()
