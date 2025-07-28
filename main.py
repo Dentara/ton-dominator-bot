@@ -76,7 +76,7 @@ def run_bot():
             candle_time = last_candle[0]
             current_price = last_candle[4]
 
-            if candle_time == last_candle_time:
+            if last_candle_time is not None and candle_time == last_candle_time:
                 time.sleep(5)
                 continue
             last_candle_time = candle_time
