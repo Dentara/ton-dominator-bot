@@ -20,6 +20,7 @@ def ask_gpt(message: str) -> str:
                         "Mövqe varsa və vəziyyət uyğundursa, mövqeni artıra bilərsən. Əks yönlü risk varsa və çıxmaq daha ağıllıdırsa, yönü dəyiş.\n\n"
                         "Kapitalın maksimum 60%-dən çoxunu bir anda istifadə etmə. Qalan hissəni ehtiyat üçün saxla.\n\n"
                         "Hər dəfə yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION."
+                        "hansı tokenə nə qədər kapital ayrılacağının faizini özün seç"
                     )
                 },
                 {"role": "user", "content": message}
