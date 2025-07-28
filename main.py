@@ -46,7 +46,6 @@ except Exception as e:
     log(f"❌ Exchange xətası: {e}")
     exit(1)
 
-# ✅ BURADA GT əlavə olundu
 symbols = ['TON/USDT:USDT', 'CAKE/USDT:USDT', 'GT/USDT:USDT', 'XRP/USDT:USDT']
 
 leverage = 3
@@ -88,26 +87,26 @@ def run_bot():
                     continue
                 last_candle_times[symbol] = candle_time
 
-                try:
-                    balance_info = exchange.fetch_balance({"type": "swap"})
-                    free_balance = balance_info['free'].get('USDT', 0) or 0
+                balance_info = exchange.fetch_balance({"type": "swap"})
+                free_balance = balance_info['free'].get('USDT', 0) or 0
 
-                    positions = exchange.fetch_positions()
-                    total_other_margin = 0.0
-                    for pos in positions:
-                        symbol_ = pos.get('symbol', '')
-                        contracts = float(pos.get('contracts') or 0)
-                        margin = float(pos.get('initialMargin') or 0)
-                        if contracts > 0 and symbol_ != symbol:
+                positions = exchange.fetch_positions()
+                total_other_margin = 0.0
+                active_position = None
+                current_contracts = 0
+                unrealized_pnl = 0
+
+                for pos in positions:
+                    if pos.get("symbol") == symbol:
+                        active_position = pos.get("side", "").upper()
+                        current_contracts = float(pos.get("contracts") or 0)
+                        unrealized_pnl = float(pos.get("unrealizedPnl") or 0)
+                    else:
+                        margin = float(pos.get("initialMargin") or 0)
+                        if margin > 0:
                             total_other_margin += margin
 
-                    usable_balance = free_balance - total_other_margin
-                    if usable_balance < 0:
-                        usable_balance = 0
-
-                except Exception as e:
-                    log(f"❗ Balance xətası: {e}")
-                    usable_balance = 0
+                usable_balance = max(free_balance - total_other_margin, 0)
 
                 if risk_manager.is_risk_limit_exceeded(usable_balance):
                     notify(f"⛔ {symbol} üçün risk limiti aşılıb")
@@ -118,21 +117,19 @@ def run_bot():
                 sentiment = get_sentiment_score()
                 pattern = detect_pattern(ohlcv)
                 decision_1h, decision_4h = get_higher_tf_context(symbol)
-                current_position = state_tracker.get_position(symbol)
 
                 gpt_msg = (
                     f"{symbol} üçün texniki analiz:\n"
                     f"EMA7: {indicators['ema_fast']}, EMA21: {indicators['ema_slow']}, "
                     f"RSI: {indicators['rsi']}, Pattern: {pattern}\n"
                     f"Sentiment: {sentiment}, 1h: {decision_1h}, 4h: {decision_4h}\n"
-                    f"Açıq mövqe: {current_position}\n"
+                    f"Açıq mövqe: {active_position}, Kontraktlar: {current_contracts}, Balans: {usable_balance:.2f} USDT\n"
                     f"Yalnız bir sözlə cavab ver: LONG, SHORT və ya NO_ACTION."
                 )
 
                 gpt_decision = ask_gpt(gpt_msg).strip().upper()
                 if gpt_decision not in ["LONG", "SHORT"]:
                     gpt_decision = "NO_ACTION"
-
                 if gpt_decision == "LONG" and decision_1h != "sell" and decision_4h != "sell":
                     decision = "LONG"
                 elif gpt_decision == "SHORT" and decision_1h != "buy" and decision_4h != "buy":
@@ -144,19 +141,32 @@ def run_bot():
 
                 notify(f"📍 {symbol} üçün qərar: {decision}", level="info")
 
+                # Əks mövqe varsa → əməliyyatı blokla
+                if active_position == "LONG" and decision == "SHORT":
+                    notify(f"🚫 {symbol}: Aktiv LONG mövqe var, yeni SHORT bloklandı", level="info")
+                    continue
+                if active_position == "SHORT" and decision == "LONG":
+                    notify(f"🚫 {symbol}: Aktiv SHORT mövqe var, yeni LONG bloklandı", level="info")
+                    continue
+
+                # Mövqe çoxdursa, balansın 90%-dən çoxdursa → keç
+                if current_contracts * current_price > usable_balance * 0.9:
+                    notify(f"⛔ {symbol}: Mövqe artıq balansın 90%-nə bərabərdir. Əməliyyat keçildi.", level="info")
+                    continue
+
                 amount = max(round((usable_balance * 0.1) / current_price, 2), 5)
                 if amount < 0.1:
                     notify(f"⚠️ {symbol} üçün balans azdır", level="silent")
                     continue
 
-                active_position = state_tracker.get_position(symbol)
                 order = {}
+                current_state = state_tracker.get_position(symbol)
 
                 if decision == "NO_ACTION":
                     continue
 
-                if decision != active_position:
-                    if active_position == "NONE" or state_tracker.can_close_position(symbol):
+                if decision != current_state:
+                    if current_state == "NONE" or state_tracker.can_close_position(symbol):
                         side = "buy" if decision == "LONG" else "sell"
                         order = execute_trade(exchange, symbol, side, amount)
                         state_tracker.update_position(symbol, decision)
