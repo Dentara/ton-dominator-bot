@@ -8,6 +8,10 @@ from utils.telegram_notifier import send_telegram_message
 
 DEBUG_MODE = False
 
+TOKENS = ["TON/USDT:USDT", "GT/USDT:USDT"]  # İstədiyin qədər əlavə et
+LEVERAGE = 3
+POSITION_STATE = {}
+
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -38,22 +42,23 @@ try:
     })
     log("✅ Exchange bağlantısı quruldu")
 except Exception as e:
-    log(f"❌ Exchange bağlantı xətası: {e}")
-    send_telegram_message(f"❌ Exchange bağlantı xətası: {e}")
+    msg = f"❌ Exchange bağlantı xətası: {e}"
+    log(msg)
+    send_telegram_message(msg)
     exit(1)
 
-symbol = "TON/USDT:USDT"
-leverage = 3
-
-try:
-    exchange.set_leverage(leverage, symbol)
-    log(f"⚙️ Leverage təyin olundu: {leverage}x")
-except Exception as e:
-    log(f"❌ Leverage təyini uğursuz: {e}")
-    send_telegram_message(f"❌ Leverage təyini uğursuz: {e}")
-
-last_candle_time = None
-last_position = "NONE"
+# Leverage və mövqe statuslarını ilkin qur
+for symbol in TOKENS:
+    try:
+        exchange.set_leverage(LEVERAGE, symbol)
+        POSITION_STATE[symbol] = {
+            "last_candle_time": None,
+            "last_position": "NONE"
+        }
+        log(f"⚙️ Leverage təyin olundu: {LEVERAGE}x → {symbol}")
+    except Exception as e:
+        log(f"❌ Leverage təyini uğursuz ({symbol}): {e}")
+        send_telegram_message(f"❌ Leverage təyini uğursuz: {symbol}")
 
 def get_trend(symbol, timeframe='1h'):
     try:
@@ -69,77 +74,75 @@ def get_trend(symbol, timeframe='1h'):
         return "unknown"
 
 def run_bot():
-    global last_candle_time, last_position
-    log("🚀 GPT əsaslı TON futures bot başladı")
+    log("🚀 GPT əsaslı çox tokenli futures bot başladı")
 
     while True:
-        try:
-            ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=30)
-            last_candle = ohlcv[-1]
-            candle_time = last_candle[0]
-            current_price = last_candle[4]
+        for symbol in TOKENS:
+            try:
+                last_time = POSITION_STATE[symbol]["last_candle_time"]
+                ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=30)
+                last_candle = ohlcv[-1]
+                candle_time = last_candle[0]
+                current_price = last_candle[4]
 
-            if candle_time == last_candle_time:
-                time.sleep(5)
-                continue
-            last_candle_time = candle_time
+                if candle_time == last_time:
+                    continue
+                POSITION_STATE[symbol]["last_candle_time"] = candle_time
 
-            balance_info = exchange.fetch_balance({"type": "swap"})
-            free_balance = balance_info['free'].get('USDT', 0) or 0
-            positions = exchange.fetch_positions()
-            active_position = "NONE"
-            contracts = 0
-            pnl = 0
+                balance_info = exchange.fetch_balance({"type": "swap"})
+                free_balance = balance_info['free'].get('USDT', 0) or 0
+                positions = exchange.fetch_positions()
+                active_position = "NONE"
+                contracts = 0
+                pnl = 0
 
-            for pos in positions:
-                if pos.get("symbol") == symbol:
-                    contracts = float(pos.get("contracts") or 0)
-                    pnl = float(pos.get("unrealizedPnl") or 0)
-                    side = pos.get("side")
-                    if side:
-                        active_position = side.upper()
+                for pos in positions:
+                    if pos.get("symbol") == symbol:
+                        contracts = float(pos.get("contracts") or 0)
+                        pnl = float(pos.get("unrealizedPnl") or 0)
+                        side = pos.get("side")
+                        if side:
+                            active_position = side.upper()
 
-            trend_1h = get_trend(symbol, '1h')
-            trend_4h = get_trend(symbol, '4h')
+                trend_1h = get_trend(symbol, '1h')
+                trend_4h = get_trend(symbol, '4h')
 
-            gpt_msg = (
-                f"Token: {symbol}\n"
-                f"Balans: {free_balance:.2f} USDT\n"
-                f"Açıq mövqe: {active_position}, kontraktlar: {contracts}, PnL: {pnl:.2f} USDT\n"
-                f"1h trend: {trend_1h}, 4h trend: {trend_4h}\n"
-                f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
-            )
+                gpt_msg = (
+                    f"Token: {symbol}\n"
+                    f"Balans: {free_balance:.2f} USDT\n"
+                    f"Açıq mövqe: {active_position}, kontraktlar: {contracts}, PnL: {pnl:.2f} USDT\n"
+                    f"1h trend: {trend_1h}, 4h trend: {trend_4h}\n"
+                    f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
+                )
 
-            raw_response = ask_gpt(gpt_msg)
-            decision = raw_response.strip().upper()
+                raw_response = ask_gpt(gpt_msg)
+                decision = raw_response.strip().upper()
+                if decision not in ["LONG", "SHORT"]:
+                    decision = "NO_ACTION"
 
-            if decision not in ["LONG", "SHORT"]:
-                decision = "NO_ACTION"
+                send_telegram_message(f"📍 {symbol} GPT qərarı: {decision}")
 
-            send_telegram_message(f"📍 GPT qərarı: {decision}")
+                if decision == "NO_ACTION":
+                    continue
 
-            if decision == "NO_ACTION":
-                continue
+                if decision == active_position:
+                    log(f"⏸️ {symbol}: Mövqe artıq açıqdır – yeni əməliyyat edilmədi")
+                    continue
 
-            if decision == active_position:
-                log(f"⏸️ {symbol}: Mövqe artıq açıqdır – yeni əməliyyat edilmədi")
-                continue
+                amount = max(round((free_balance * 0.2) / current_price, 2), 5)
+                if amount < 1:
+                    log(f"⚠️ Balans çox azdır ({free_balance:.2f} USDT), {symbol} dayandırıldı")
+                    continue
 
-            amount = max(round((free_balance * 0.2) / current_price, 2), 5)
-            if amount < 1:
-                log(f"⚠️ Balans çox azdır ({free_balance:.2f} USDT), əməliyyat dayandırıldı")
-                continue
+                side = "buy" if decision == "LONG" else "sell"
+                order = execute_trade(exchange, symbol, side, amount)
+                POSITION_STATE[symbol]["last_position"] = decision
+                send_telegram_message(f"✅ Yeni mövqe açıldı: {symbol} → {decision} | {amount} miqdar")
 
-            side = "buy" if decision == "LONG" else "sell"
-            order = execute_trade(exchange, symbol, side, amount)
-            last_position = decision
-            send_telegram_message(f"✅ Yeni mövqe açıldı: {decision} | {amount} TON")
-
-        except Exception as e:
-            error_msg = f"❌ BOT XƏTASI: {str(e)}"
-            log(error_msg)
-            send_telegram_message(error_msg)
-            time.sleep(10)
+            except Exception as e:
+                error_msg = f"❌ {symbol} üçün BOT XƏTASI: {str(e)}"
+                log(error_msg)
+                send_telegram_message(error_msg)
 
         time.sleep(5)
 
