@@ -1,17 +1,19 @@
-import os
 import openai
+import os
+from dotenv import load_dotenv
 
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def ask_gpt(message: str) -> str:
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "Sən maliyyə üzrə ixtisaslaşmış ticarət analizçisisən."},
+                {"role": "system", "content": "Sən professional futures treyder botusan. Verilən məlumatlara əsasən yalnız bir cavab ver: LONG, SHORT, NO_ACTION."},
                 {"role": "user", "content": message}
             ]
         )
-        return response.choices[0].message.content
+        return response['choices'][0]['message']['content']
     except Exception as e:
-        return f"[Xəta baş verdi]: {str(e)}"
+        return f"[GPT XƏTASI]: {str(e)}"
