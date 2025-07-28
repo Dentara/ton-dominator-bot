@@ -65,7 +65,7 @@ def get_trend(symbol, timeframe='1h'):
     except:
         return "unknown"
 def run_bot():
-    global last_position
+    global last_candle_time, last_position
     log("🚀 GPT əsaslı TON futures bot başladı")
 
     while True:
