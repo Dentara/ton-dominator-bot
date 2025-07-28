@@ -13,7 +13,7 @@ def send_telegram_message(text: str):
         time.sleep(1.1)
     last_msg_time = now
 
-    text = text.replace("<", "\\<").replace(">", "\\>")
+    text = text.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("]", "\\]")
     
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
