@@ -20,12 +20,14 @@ def log(msg):
     print(f"[{now}] {msg}")
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
+send_telegram_message("✅ BOT İŞƏ DÜŞDÜ – TEST MESAJ")
 
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
 
 if not api_key or not api_secret:
     log("❌ API açarları tapılmadı!")
+    send_telegram_message("❌ API açarları tapılmadı!")
     exit(1)
 
 try:
@@ -38,6 +40,7 @@ try:
     log("✅ Exchange bağlantısı quruldu")
 except Exception as e:
     log(f"❌ Exchange bağlantı xətası: {e}")
+    send_telegram_message(f"❌ Exchange bağlantı xətası: {e}")
     exit(1)
 
 symbol = "TON/USDT:USDT"
@@ -48,6 +51,7 @@ try:
     log(f"⚙️ Leverage təyin olundu: {leverage}x")
 except Exception as e:
     log(f"❌ Leverage təyini uğursuz: {e}")
+    send_telegram_message(f"❌ Leverage təyini uğursuz: {e}")
 
 last_candle_time = None
 last_position = "NONE"
@@ -64,24 +68,23 @@ def get_trend(symbol, timeframe='1h'):
             return "sideways"
     except:
         return "unknown"
+
 def run_bot():
     global last_candle_time, last_position
     log("🚀 GPT əsaslı TON futures bot başladı")
 
     while True:
         try:
-            # Candle məlumatı
             ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=30)
             last_candle = ohlcv[-1]
             candle_time = last_candle[0]
             current_price = last_candle[4]
 
-            if last_candle_time is not None and candle_time == last_candle_time:
+            if candle_time == last_candle_time:
                 time.sleep(5)
                 continue
             last_candle_time = candle_time
 
-            # Balans və mövqe məlumatları
             balance_info = exchange.fetch_balance({"type": "swap"})
             free_balance = balance_info['free'].get('USDT', 0) or 0
             positions = exchange.fetch_positions()
@@ -97,11 +100,9 @@ def run_bot():
                     if side:
                         active_position = side.upper()
 
-            # Trendləri al
             trend_1h = get_trend(symbol, '1h')
             trend_4h = get_trend(symbol, '4h')
 
-            # GPT üçün sorğu qur
             gpt_msg = (
                 f"Token: {symbol}\n"
                 f"Balans: {free_balance:.2f} USDT\n"
@@ -110,7 +111,11 @@ def run_bot():
                 f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
             )
 
-            decision = ask_gpt(gpt_msg).strip().upper()
+            log(f"[GPT INPUT]\n{gpt_msg}")
+            raw_response = ask_gpt(gpt_msg)
+            log(f"[GPT RESPONSE] {raw_response}")
+            decision = raw_response.strip().upper()
+
             if decision not in ["LONG", "SHORT"]:
                 decision = "NO_ACTION"
 
@@ -134,7 +139,9 @@ def run_bot():
             notify(f"✅ Yeni mövqe açıldı: {decision} | {amount} TON", level="info")
 
         except Exception as e:
-            notify(f"❌ BOT XƏTASI: {e}", level="info")
+            error_msg = f"❌ BOT XƏTASI: {str(e)}"
+            log(error_msg)
+            send_telegram_message(error_msg)
             time.sleep(10)
 
         time.sleep(5)
