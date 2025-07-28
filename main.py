@@ -20,7 +20,6 @@ def log(msg):
     print(f"[{now}] {msg}")
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
-send_telegram_message("✅ BOT İŞƏ DÜŞDÜ – TEST MESAJ")
 
 api_key = os.getenv("GATE_API_KEY")
 api_secret = os.getenv("GATE_API_SECRET")
@@ -111,32 +110,30 @@ def run_bot():
                 f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
             )
 
-            log(f"[GPT INPUT]\n{gpt_msg}")
             raw_response = ask_gpt(gpt_msg)
-            log(f"[GPT RESPONSE] {raw_response}")
             decision = raw_response.strip().upper()
 
             if decision not in ["LONG", "SHORT"]:
                 decision = "NO_ACTION"
 
-            notify(f"📍 GPT qərarı: {decision}", level="info")
+            send_telegram_message(f"📍 GPT qərarı: {decision}")
 
             if decision == "NO_ACTION":
                 continue
 
             if decision == active_position:
-                notify(f"⏸️ {symbol}: Mövqe artıq açıqdır – yeni əməliyyat edilmədi", level="debug")
+                log(f"⏸️ {symbol}: Mövqe artıq açıqdır – yeni əməliyyat edilmədi")
                 continue
 
             amount = max(round((free_balance * 0.2) / current_price, 2), 5)
             if amount < 1:
-                notify(f"⚠️ Balans çox azdır ({free_balance:.2f} USDT), əməliyyat dayandırıldı", level="info")
+                log(f"⚠️ Balans çox azdır ({free_balance:.2f} USDT), əməliyyat dayandırıldı")
                 continue
 
             side = "buy" if decision == "LONG" else "sell"
             order = execute_trade(exchange, symbol, side, amount)
             last_position = decision
-            notify(f"✅ Yeni mövqe açıldı: {decision} | {amount} TON", level="info")
+            send_telegram_message(f"✅ Yeni mövqe açıldı: {decision} | {amount} TON")
 
         except Exception as e:
             error_msg = f"❌ BOT XƏTASI: {str(e)}"
