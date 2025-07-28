@@ -7,7 +7,7 @@ def log(msg):
 
 def execute_trade(exchange, symbol: str, side: str, amount: float) -> dict:
     try:
-        log(f"📤 Əməliyyat siqnalı gəldi: {side.upper()} göndərilir")  
+        log(f"📤 Əməliyyat: {side.upper()} göndərilir → {amount} {symbol}")
         if side == "buy":
             order = exchange.create_market_buy_order(symbol, amount)
         elif side == "sell":
@@ -15,10 +15,8 @@ def execute_trade(exchange, symbol: str, side: str, amount: float) -> dict:
         else:
             log(f"❌ Naməlum əməliyyat növü: {side}")
             return {}
-
-        log(f"✅ {side.upper()} {amount} {symbol} icra edildi")
+        log(f"✅ Əməliyyat tamamlandı: {side.upper()} {amount} {symbol}")
         return order
-
     except Exception as e:
         log(f"❗ Əməliyyat xətası: {e}")
         time.sleep(5)
