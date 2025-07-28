@@ -98,7 +98,7 @@ def run_bot():
 
                 for pos in positions:
                     if pos.get("symbol") == symbol:
-                        active_position = pos.get("side", "").upper()
+                        active_position = (pos.get("side") or "none").upper()
                         current_contracts = float(pos.get("contracts") or 0)
                         unrealized_pnl = float(pos.get("unrealizedPnl") or 0)
                     else:
