@@ -20,7 +20,6 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
-
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -28,11 +27,9 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
-
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
-
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -67,7 +64,6 @@ for symbol in TOKENS:
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
-
 def get_trend(symbol, timeframe='1h'):
     try:
         candles = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=30)
@@ -80,7 +76,6 @@ def get_trend(symbol, timeframe='1h'):
             return "sideways"
     except:
         return "unknown"
-
 
 def run_bot():
     log("🚀 GPT əsaslı tam sərbəst futures bot başladı")
@@ -135,8 +130,9 @@ def run_bot():
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
                     f"Son qərar: {last_decision} ({last_time_diff} dəq əvvəl)\n"
-                    f"Kapitaldan istifadə olunacaq faiz dəyərini sən təyin et (10-60%).\n"
-                    f"Cavab formatı: DIRECTION [%FAIZ], məsələn: LONG 25%"
+                    f"Hazırda sən mövqeni artırmaq, azaltmaq, yönü dəyişmək və ya tamamilə bağlamaq qərarını sərbəst şəkildə verə bilərsən.\n"
+                    f"Həm yönü, həm də istifadə olunacaq kapital faizini özün təyin et.\n"
+                    f"Yalnız bir cavab ver."
                 )
 
                 send_telegram_message(f"🧠 [GPT MSG - {symbol}]:\n{gpt_msg}")
@@ -146,14 +142,23 @@ def run_bot():
                 if raw_response.startswith("[GPT XƏTASI]"):
                     send_telegram_message(f"❌ GPT XƏTASI ({symbol}): {raw_response}")
 
-                parts = raw_response.strip().upper().split()
+                content = raw_response.strip().upper()
+                if content.startswith("CLOSE"):
+                    if active_position != "NONE":
+                        side = "sell" if active_position == "LONG" else "buy"
+                        order = execute_trade(exchange, symbol, side, contracts)
+                        send_telegram_message(f"❌ Mövqe GPT qərarı ilə BAĞLANDI: {symbol} → {side} | {contracts} kontrakt")
+                        POSITION_STATE[symbol]["last_position"] = "NONE"
+                    continue
+
+                parts = content.split()
                 if len(parts) != 2 or parts[0] not in ["LONG", "SHORT", "NO_ACTION"]:
                     decision = "NO_ACTION"
                     percent = 0
                 else:
-                    decision, percent_str = parts
+                    decision = parts[0]
                     try:
-                        percent = int(percent_str.replace("%", ""))
+                        percent = int(parts[1].replace("%", ""))
                     except:
                         percent = 0
 
@@ -181,6 +186,5 @@ def run_bot():
                 send_telegram_message(error_msg)
 
         time.sleep(5)
-
 
 run_bot()
