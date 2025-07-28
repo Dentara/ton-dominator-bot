@@ -20,6 +20,7 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
+
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -27,9 +28,24 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
+
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
+
+
+def get_trend(symbol, timeframe='1h'):
+    try:
+        candles = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=30)
+        closes = [x[4] for x in candles]
+        if closes[-1] > closes[-2] > closes[-3]:
+            return "up"
+        elif closes[-1] < closes[-2] < closes[-3]:
+            return "down"
+        else:
+            return "sideways"
+    except:
+        return "unknown"
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -64,21 +80,10 @@ for symbol in TOKENS:
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
-def get_trend(symbol, timeframe='1h'):
-    try:
-        candles = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=30)
-        closes = [x[4] for x in candles]
-        if closes[-1] > closes[-2] > closes[-3]:
-            return "up"
-        elif closes[-1] < closes[-2] < closes[-3]:
-            return "down"
-        else:
-            return "sideways"
-    except:
-        return "unknown"
 
 def run_bot():
-    log("🚀 GPT əsaslı tam sərbəst futures bot başladı")
+    log("🚀 GPT əsaslı çox tokenli futures bot başladı")
+    summary = []
 
     while True:
         for symbol in TOKENS:
@@ -119,9 +124,6 @@ def run_bot():
                 btc_trend_1h = get_trend("BTC/USDT:USDT", '1h')
                 btc_trend_4h = get_trend("BTC/USDT:USDT", '4h')
 
-                last_decision = DECISION_MEMORY[symbol]["last_decision"]
-                last_time_diff = int((time.time() - DECISION_MEMORY[symbol]["timestamp"]) / 60)
-
                 gpt_msg = (
                     f"Token: {symbol}\n"
                     f"Balans: {free_balance:.2f} USDT\n"
@@ -129,61 +131,48 @@ def run_bot():
                     f"Trend: 1h={trend_1h}, 4h={trend_4h}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
-                    f"Son qərar: {last_decision} ({last_time_diff} dəq əvvəl)\n"
                     f"Hazırda sən mövqeni artırmaq, azaltmaq, yönü dəyişmək və ya tamamilə bağlamaq qərarını sərbəst şəkildə verə bilərsən.\n"
-                    f"Həm yönü, həm də istifadə olunacaq kapital faizini özün təyin et.\n"
                     f"Yalnız bir cavab ver."
                 )
 
-                send_telegram_message(f"🧠 [GPT MSG - {symbol}]:\n{gpt_msg}")
                 raw_response = ask_gpt(gpt_msg)
-                send_telegram_message(f"🤖 [GPT CAVAB - {symbol}]: {raw_response}")
+                decision_text = raw_response.strip().upper()
 
-                if raw_response.startswith("[GPT XƏTASI]"):
-                    send_telegram_message(f"❌ GPT XƏTASI ({symbol}): {raw_response}")
-
-                content = raw_response.strip().upper()
-                if content.startswith("CLOSE"):
-                    if active_position != "NONE":
-                        side = "sell" if active_position == "LONG" else "buy"
-                        order = execute_trade(exchange, symbol, side, contracts)
-                        send_telegram_message(f"❌ Mövqe GPT qərarı ilə BAĞLANDI: {symbol} → {side} | {contracts} kontrakt")
-                        POSITION_STATE[symbol]["last_position"] = "NONE"
+                if decision_text.startswith("CLOSE") and active_position != "NONE":
+                    side = "sell" if active_position == "LONG" else "buy"
+                    order = execute_trade(exchange, symbol, side, contracts)
+                    POSITION_STATE[symbol]["last_position"] = "NONE"
+                    summary.append(f"{symbol} → CLOSE")
                     continue
 
-                parts = content.split()
-                if len(parts) != 2 or parts[0] not in ["LONG", "SHORT", "NO_ACTION"]:
-                    decision = "NO_ACTION"
-                    percent = 0
-                else:
-                    decision = parts[0]
-                    try:
-                        percent = int(parts[1].replace("%", ""))
-                    except:
-                        percent = 0
+                parts = decision_text.split()
+                if len(parts) != 2 or parts[0] not in ["LONG", "SHORT"]:
+                    summary.append(f"{symbol} → NO_ACTION")
+                    continue
 
-                DECISION_MEMORY[symbol] = {
-                    "last_decision": decision,
-                    "timestamp": time.time()
-                }
-
-                if decision == "NO_ACTION" or percent == 0:
+                direction, percent_str = parts
+                try:
+                    percent = int(percent_str.replace("%", ""))
+                except:
+                    summary.append(f"{symbol} → NO_ACTION")
                     continue
 
                 amount = round((free_balance * (percent / 100)) / current_price, 2)
                 if amount < 1:
+                    summary.append(f"{symbol} → SKIPPED (low amount)")
                     continue
 
-                side = "buy" if decision == "LONG" else "sell"
+                side = "buy" if direction == "LONG" else "sell"
                 order = execute_trade(exchange, symbol, side, amount)
-                POSITION_STATE[symbol]["last_position"] = decision
-
-                send_telegram_message(f"✅ Yeni mövqe açıldı: {symbol} → {decision} | {amount} miqdar ({percent}%)")
+                POSITION_STATE[symbol]["last_position"] = direction
+                summary.append(f"{symbol} → {direction} ({percent}%)")
 
             except Exception as e:
-                error_msg = f"❌ {symbol} üçün BOT XƏTASI: {str(e)}"
-                log(error_msg)
-                send_telegram_message(error_msg)
+                summary.append(f"{symbol} → XƏTA: {str(e)}")
+
+        if summary:
+            notify("📊 GPT QƏRARLARI:\n" + "\n".join(summary))
+            summary.clear()
 
         time.sleep(5)
 
