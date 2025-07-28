@@ -53,6 +53,7 @@ strategy = StrategyManager()
 risk_manager = RiskManager()
 state_tracker = StateTracker()
 last_candle_times = {symbol: None for symbol in symbols}
+risk_status = {}
 
 def get_higher_tf_context(symbol):
     try:
@@ -109,8 +110,12 @@ def run_bot():
                 usable_balance = max(free_balance - total_other_margin, 0)
 
                 if risk_manager.is_risk_limit_exceeded(usable_balance):
-                    notify(f"⛔ {symbol} üçün risk limiti aşılıb")
+                    if not risk_status.get(symbol):
+                        notify(f"⛔ {symbol} üçün risk limiti aşılıb – əməliyyat dayandırıldı", level="info")
+                        risk_status[symbol] = True
                     continue
+                else:
+                    risk_status[symbol] = False
 
                 local_decision = strategy.decide(close_prices, ohlcv)
                 indicators = strategy.get_indicators(close_prices)
@@ -141,17 +146,17 @@ def run_bot():
 
                 notify(f"📍 {symbol} üçün qərar: {decision}", level="info")
 
-                # Əks mövqe varsa → əməliyyatı blokla
+                # Əks mövqe varsa – əks əməliyyat bloklanır
                 if active_position == "LONG" and decision == "SHORT":
-                    notify(f"🚫 {symbol}: Aktiv LONG mövqe var, yeni SHORT bloklandı", level="info")
+                    notify(f"🚫 {symbol}: Aktiv LONG mövqe var, SHORT əməliyyatı rədd edildi", level="info")
                     continue
                 if active_position == "SHORT" and decision == "LONG":
-                    notify(f"🚫 {symbol}: Aktiv SHORT mövqe var, yeni LONG bloklandı", level="info")
+                    notify(f"🚫 {symbol}: Aktiv SHORT mövqe var, LONG əməliyyatı rədd edildi", level="info")
                     continue
 
-                # Mövqe çoxdursa, balansın 90%-dən çoxdursa → keç
+                # Mövqe ölçüsü balansdan çoxdursa → əməliyyat keçilsin
                 if current_contracts * current_price > usable_balance * 0.9:
-                    notify(f"⛔ {symbol}: Mövqe artıq balansın 90%-nə bərabərdir. Əməliyyat keçildi.", level="info")
+                    notify(f"⛔ {symbol}: Mövqe balansın 90%-nə bərabərdir, əməliyyat dayandırıldı", level="info")
                     continue
 
                 amount = max(round((usable_balance * 0.1) / current_price, 2), 5)
