@@ -8,10 +8,18 @@ from utils.trade_executor import execute_trade
 from utils.telegram_notifier import send_telegram_message
 
 DEBUG_MODE = False
-TOKENS = ["TON/USDT:USDT", "GT/USDT:USDT"]
+TOKENS = [
+    "TON/USDT:USDT",
+    "GT/USDT:USDT",
+    "XRP/USDT:USDT",
+    "CAKE/USDT:USDT",
+    "DOGE/USDT:USDT",
+    "KAS/USDT:USDT"
+]
 LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
+
 
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
@@ -20,9 +28,11 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
+
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
+
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -57,6 +67,7 @@ for symbol in TOKENS:
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
+
 def get_trend(symbol, timeframe='1h'):
     try:
         candles = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=30)
@@ -69,6 +80,7 @@ def get_trend(symbol, timeframe='1h'):
             return "sideways"
     except:
         return "unknown"
+
 
 def run_bot():
     log("🚀 GPT əsaslı tam sərbəst futures bot başladı")
@@ -123,7 +135,8 @@ def run_bot():
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
                     f"Son qərar: {last_decision} ({last_time_diff} dəq əvvəl)\n"
-                    f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
+                    f"Kapitaldan istifadə olunacaq faiz dəyərini sən təyin et (10-60%).\n"
+                    f"Cavab formatı: DIRECTION [%FAIZ], məsələn: LONG 25%"
                 )
 
                 send_telegram_message(f"🧠 [GPT MSG - {symbol}]:\n{gpt_msg}")
@@ -133,19 +146,26 @@ def run_bot():
                 if raw_response.startswith("[GPT XƏTASI]"):
                     send_telegram_message(f"❌ GPT XƏTASI ({symbol}): {raw_response}")
 
-                decision = raw_response.strip().upper()
-                if decision not in ["LONG", "SHORT"]:
+                parts = raw_response.strip().upper().split()
+                if len(parts) != 2 or parts[0] not in ["LONG", "SHORT", "NO_ACTION"]:
                     decision = "NO_ACTION"
+                    percent = 0
+                else:
+                    decision, percent_str = parts
+                    try:
+                        percent = int(percent_str.replace("%", ""))
+                    except:
+                        percent = 0
 
                 DECISION_MEMORY[symbol] = {
                     "last_decision": decision,
                     "timestamp": time.time()
                 }
 
-                if decision == "NO_ACTION":
+                if decision == "NO_ACTION" or percent == 0:
                     continue
 
-                amount = max(round((free_balance * 0.2) / current_price, 2), 5)
+                amount = round((free_balance * (percent / 100)) / current_price, 2)
                 if amount < 1:
                     continue
 
@@ -153,7 +173,7 @@ def run_bot():
                 order = execute_trade(exchange, symbol, side, amount)
                 POSITION_STATE[symbol]["last_position"] = decision
 
-                send_telegram_message(f"✅ Yeni mövqe açıldı: {symbol} → {decision} | {amount} miqdar")
+                send_telegram_message(f"✅ Yeni mövqe açıldı: {symbol} → {decision} | {amount} miqdar ({percent}%)")
 
             except Exception as e:
                 error_msg = f"❌ {symbol} üçün BOT XƏTASI: {str(e)}"
@@ -161,5 +181,6 @@ def run_bot():
                 send_telegram_message(error_msg)
 
         time.sleep(5)
+
 
 run_bot()
