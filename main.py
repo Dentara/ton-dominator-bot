@@ -71,7 +71,7 @@ def get_trend(symbol, timeframe='1h'):
         return "unknown"
 
 def run_bot():
-    log("🚀 GPT əsaslı çox tokenli futures bot başladı")
+    log("🚀 GPT əsaslı tam sərbəst futures bot başladı")
 
     while True:
         for symbol in TOKENS:
@@ -142,7 +142,7 @@ def run_bot():
                     "timestamp": time.time()
                 }
 
-                if decision == "NO_ACTION" or decision == active_position:
+                if decision == "NO_ACTION":
                     continue
 
                 amount = max(round((free_balance * 0.2) / current_price, 2), 5)
