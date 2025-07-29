@@ -19,6 +19,14 @@ TOKENS = [
 LEVERAGE = 3
 POSITION_STATE = {}
 
+TOKEN_SIZES = {
+    "TON/USDT:USDT": 100,
+    "KAS/USDT:USDT": 10,
+    "XRP/USDT:USDT": 10,
+    "CAKE/USDT:USDT": 20,
+    "GT/USDT:USDT": 50,
+    "DOGE/USDT:USDT": 50
+}
 
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
@@ -27,11 +35,9 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
-
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
-
 
 def get_trend(symbol, timeframe='1h'):
     try:
@@ -45,12 +51,6 @@ def get_trend(symbol, timeframe='1h'):
             return "sideways"
     except:
         return "unknown"
-
-
-def calculate_order_amount(price, balance, percent=0.03):
-    usdt_to_use = balance * percent
-    return round(usdt_to_use / price, 2)
-
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -84,9 +84,8 @@ for symbol in TOKENS:
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
-
 def run_bot():
-    log("🚀 GPT əsaslı çox tokenli futures bot başladı")
+    log("🚀 GPT əsaslı sabit miqdarlı futures bot başladı")
     summary = []
 
     while True:
@@ -145,13 +144,9 @@ def run_bot():
                     summary.append(f"{symbol} → NO_ACTION")
                     continue
 
-                if free_balance < 5:
-                    summary.append(f"{symbol} → SKIPPED (insufficient balance)")
-                    continue
-
-                amount = calculate_order_amount(current_price, free_balance)
+                amount = TOKEN_SIZES.get(symbol, 0)
                 if amount < 1:
-                    summary.append(f"{symbol} → SKIPPED (low amount)")
+                    summary.append(f"{symbol} → SKIPPED (no amount)")
                     continue
 
                 side = "buy" if decision_text == "LONG" else "sell"
