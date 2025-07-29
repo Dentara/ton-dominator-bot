@@ -142,7 +142,7 @@ def run_bot():
                     direction = "LONG" if "LONG" in raw_response else "SHORT"
                     try:
                         usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
-                        usdt_value = float(usdt_str)
+                        usdt_value = float(usdt_str) / LEVERAGE  # nəzərə alınır
                         amount = round(usdt_value / current_price, 4)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
@@ -159,7 +159,7 @@ def run_bot():
                     side = "buy" if direction == "LONG" else "sell"
                     order = exchange.create_market_order(symbol, side, amount)
                     POSITION_STATE[symbol]["last_position"] = direction
-                    summary.append(f"{symbol} → {direction} ({amount} token) ≈ {usdt_value} USDT")
+                    summary.append(f"{symbol} → {direction} ({amount} token) ≈ {usdt_value:.2f} USDT margin")
                     continue
 
                 if active_position != "NONE" and contracts > 0:
