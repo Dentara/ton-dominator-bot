@@ -100,6 +100,7 @@ def run_bot():
                 active_position = "NONE"
                 contracts = 0
                 pnl = 0
+                open_positions = []
 
                 for pos in positions:
                     if pos.get("symbol") == symbol:
@@ -108,6 +109,8 @@ def run_bot():
                         side = pos.get("side")
                         if side:
                             active_position = side.upper()
+                    elif float(pos.get("contracts") or 0) > 0:
+                        open_positions.append(pos)
 
                 trend_1h = get_trend(symbol, '1h')
                 trend_4h = get_trend(symbol, '4h')
@@ -127,7 +130,7 @@ def run_bot():
                     f"Trend: 1h={trend_1h}, 4h={trend_4h}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
-                    f"İstifadə olunacaq kapital miqdarını və yönü sən təyin et. Əgər mövqe varsa, onu bağlaya və ya dəyişə bilərsən.\n"
+                    f"Sən tam sərbəstsən. Mövcud mövqelərdən lazım gəldikdə kapital azad edə bilərsən.\n"
                     f"Yalnız bir cavab ver."
                 )
 
@@ -143,10 +146,31 @@ def run_bot():
                 if any(d in raw_response for d in ["LONG", "SHORT"]):
                     direction = "LONG" if "LONG" in raw_response else "SHORT"
                     try:
-                        amount_str = ''.join(filter(str.isdigit, raw_response))
+                        amount_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
                         amount = float(amount_str)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
+                        continue
+
+                    if amount * current_price > free_balance:
+                        for pos in open_positions:
+                            sym = pos.get("symbol")
+                            pos_side = pos.get("side")
+                            pos_contracts = float(pos.get("contracts") or 0)
+                            if pos_contracts > 0:
+                                close_side = "sell" if pos_side == "long" else "buy"
+                                partial_close = round(pos_contracts * 0.3, 2)
+                                try:
+                                    exchange.create_market_order(sym, close_side, partial_close)
+                                    summary.append(f"{sym} → PARTIAL CLOSE ({partial_close})")
+                                    free_balance = exchange.fetch_balance({"type": "swap"})['free'].get('USDT', 0)
+                                    if amount * current_price <= free_balance:
+                                        break
+                                except:
+                                    continue
+
+                    if amount * current_price > free_balance:
+                        summary.append(f"{symbol} → SKIPPED (no funds after partial close)")
                         continue
 
                     if amount < 0.1:
