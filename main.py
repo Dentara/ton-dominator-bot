@@ -4,6 +4,7 @@ import ccxt
 from datetime import datetime
 from ai.gpt_assistant import ask_gpt
 from ai.ta_engine import compute_ema_rsi
+from utils.trade_executor import execute_trade
 from utils.telegram_notifier import send_telegram_message
 
 DEBUG_MODE = False
@@ -17,16 +18,7 @@ TOKENS = [
 ]
 LEVERAGE = 3
 POSITION_STATE = {}
-DECISION_MEMORY = {}
 
-CONTRACT_MULTIPLIERS = {
-    "TON/USDT:USDT": 0.1,
-    "GT/USDT:USDT": 1,
-    "XRP/USDT:USDT": 10,
-    "CAKE/USDT:USDT": 0.1,
-    "DOGE/USDT:USDT": 10,
-    "KAS/USDT:USDT": 10
-}
 
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
@@ -35,9 +27,11 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
+
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
+
 
 def get_trend(symbol, timeframe='1h'):
     try:
@@ -51,6 +45,12 @@ def get_trend(symbol, timeframe='1h'):
             return "sideways"
     except:
         return "unknown"
+
+
+def calculate_order_amount(price, balance, percent=0.03):
+    usdt_to_use = balance * percent
+    return round(usdt_to_use / price, 2)
+
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -79,14 +79,14 @@ except Exception as e:
 for symbol in TOKENS:
     try:
         exchange.set_leverage(LEVERAGE, symbol)
-        POSITION_STATE[symbol] = {"last_candle_time": None, "last_position": "NONE", "open_time": 0}
-        DECISION_MEMORY[symbol] = {"last_decision": "NONE", "timestamp": 0}
+        POSITION_STATE[symbol] = {"last_candle_time": None, "last_position": "NONE"}
         log(f"⚙️ Leverage təyin olundu: {LEVERAGE}x → {symbol}")
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
+
 def run_bot():
-    log("🚀 GPT əsaslı strateji mövqe qoruma sistemi başladı")
+    log("🚀 GPT əsaslı çox tokenli futures bot başladı")
     summary = []
 
     while True:
@@ -135,56 +135,35 @@ def run_bot():
                     f"Trend: 1h={trend_1h}, 4h={trend_4h}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
-                    f"Yalnız bir cavab ver."
+                    f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
                 )
 
-                raw_response = ask_gpt(gpt_msg).strip().upper()
+                raw_response = ask_gpt(gpt_msg)
+                decision_text = raw_response.strip().upper()
 
-                if "CLOSE" in raw_response:
-                    if active_position != "NONE" and contracts > 0:
-                        position_age = time.time() - POSITION_STATE[symbol]["open_time"]
-                        if position_age < 180 and pnl > -10:
-                            summary.append(f"{symbol} → SKIPPED (mövqe çox tez bağlanacaqdı)")
-                            continue
-                        side = "sell" if active_position == "LONG" else "buy"
-                        exchange.create_market_order(symbol, side, contracts)
-                        POSITION_STATE[symbol]["last_position"] = "NONE"
-                        POSITION_STATE[symbol]["open_time"] = 0
-                        summary.append(f"{symbol} → CLOSE (contracts={contracts})")
-                    else:
-                        summary.append(f"{symbol} → SKIPPED (mövqe yoxdur)")
+                if decision_text not in ["LONG", "SHORT"]:
+                    summary.append(f"{symbol} → NO_ACTION")
                     continue
 
-                if any(d in raw_response for d in ["LONG", "SHORT"]):
-                    direction = "LONG" if "LONG" in raw_response else "SHORT"
-                    try:
-                        usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
-                        notional = float(usdt_str)
-                        multiplier = CONTRACT_MULTIPLIERS.get(symbol, 1)
-                        token_amount = round((notional / current_price / LEVERAGE) / multiplier)
-                    except:
-                        summary.append(f"{symbol} → NO_ACTION (amount error)")
-                        continue
+                if free_balance < 5:
+                    summary.append(f"{symbol} → SKIPPED (insufficient balance)")
+                    continue
 
-                    if token_amount * current_price * LEVERAGE * multiplier > free_balance:
-                        summary.append(f"{symbol} → SKIPPED (low balance)")
-                        continue
+                amount = calculate_order_amount(current_price, free_balance)
+                if amount < 1:
+                    summary.append(f"{symbol} → SKIPPED (low amount)")
+                    continue
 
-                    side = "buy" if direction == "LONG" else "sell"
-                    exchange.create_market_order(symbol, side, token_amount)
-                    POSITION_STATE[symbol]["last_position"] = direction
-                    POSITION_STATE[symbol]["open_time"] = time.time()
-                    summary.append(f"{symbol} → {direction} ({token_amount} kontrakt) ≈ {notional} USDT")
-                elif active_position != "NONE" and contracts > 0:
-                    summary.append(f"{symbol} → NO_ACTION (mövqe açıq: {contracts})")
-                else:
-                    summary.append(f"{symbol} → NO_ACTION")
+                side = "buy" if decision_text == "LONG" else "sell"
+                order = execute_trade(exchange, symbol, side, amount)
+                POSITION_STATE[symbol]["last_position"] = decision_text
+                summary.append(f"{symbol} → {decision_text} ({amount})")
 
             except Exception as e:
                 summary.append(f"{symbol} → XƏTA: {str(e)}")
 
         if summary:
-            notify("📊 GPT QƏRARLARI:\n" + "\n".join(summary))
+            notify("\U0001F4CA GPT QƏRARLARI:\n" + "\n".join(summary))
             summary.clear()
 
         time.sleep(5)
