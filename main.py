@@ -19,6 +19,15 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
+CONTRACT_MULTIPLIERS = {
+    "TON/USDT:USDT": 0.1,
+    "GT/USDT:USDT": 1,
+    "XRP/USDT:USDT": 10,
+    "CAKE/USDT:USDT": 0.1,
+    "DOGE/USDT:USDT": 10,
+    "KAS/USDT:USDT": 10
+}
+
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -77,7 +86,7 @@ for symbol in TOKENS:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
 def run_bot():
-    log("🚀 GPT əsaslı CCXT stabil versiya başladı")
+    log("🚀 GPT əsaslı CCXT düzəlişli versiya başladı")
     summary = []
 
     while True:
@@ -146,19 +155,20 @@ def run_bot():
                     try:
                         usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
                         notional = float(usdt_str)
-                        token_amount = round((notional / current_price) / LEVERAGE, 4)
+                        multiplier = CONTRACT_MULTIPLIERS.get(symbol, 1)
+                        contracts = round((notional / current_price / LEVERAGE) / multiplier)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
                         continue
 
-                    if token_amount * current_price * LEVERAGE > free_balance:
-                        summary.append(f"{symbol} → SKIPPED (balance low)")
+                    if contracts * current_price * LEVERAGE * multiplier > free_balance:
+                        summary.append(f"{symbol} → SKIPPED (low balance)")
                         continue
 
                     side = "buy" if direction == "LONG" else "sell"
-                    exchange.create_market_order(symbol, side, token_amount)
+                    exchange.create_market_order(symbol, side, contracts)
                     POSITION_STATE[symbol]["last_position"] = direction
-                    summary.append(f"{symbol} → {direction} ({token_amount} token) ≈ {notional} USDT")
+                    summary.append(f"{symbol} → {direction} ({contracts} kontrakt) ≈ {notional} USDT")
                 elif active_position != "NONE" and contracts > 0:
                     summary.append(f"{symbol} → NO_ACTION (mövqe açıq: {contracts})")
                 else:
