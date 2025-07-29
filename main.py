@@ -79,14 +79,14 @@ except Exception as e:
 for symbol in TOKENS:
     try:
         exchange.set_leverage(LEVERAGE, symbol)
-        POSITION_STATE[symbol] = {"last_candle_time": None, "last_position": "NONE"}
+        POSITION_STATE[symbol] = {"last_candle_time": None, "last_position": "NONE", "open_time": 0}
         DECISION_MEMORY[symbol] = {"last_decision": "NONE", "timestamp": 0}
         log(f"⚙️ Leverage təyin olundu: {LEVERAGE}x → {symbol}")
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
 def run_bot():
-    log("🚀 GPT əsaslı CCXT düzəlişli versiya başladı")
+    log("🚀 GPT əsaslı strateji mövqe qoruma sistemi başladı")
     summary = []
 
     while True:
@@ -142,9 +142,14 @@ def run_bot():
 
                 if "CLOSE" in raw_response:
                     if active_position != "NONE" and contracts > 0:
+                        position_age = time.time() - POSITION_STATE[symbol]["open_time"]
+                        if position_age < 180 and pnl > -10:
+                            summary.append(f"{symbol} → SKIPPED (mövqe çox tez bağlanacaqdı)")
+                            continue
                         side = "sell" if active_position == "LONG" else "buy"
                         exchange.create_market_order(symbol, side, contracts)
                         POSITION_STATE[symbol]["last_position"] = "NONE"
+                        POSITION_STATE[symbol]["open_time"] = 0
                         summary.append(f"{symbol} → CLOSE (contracts={contracts})")
                     else:
                         summary.append(f"{symbol} → SKIPPED (mövqe yoxdur)")
@@ -156,19 +161,20 @@ def run_bot():
                         usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
                         notional = float(usdt_str)
                         multiplier = CONTRACT_MULTIPLIERS.get(symbol, 1)
-                        contracts = round((notional / current_price / LEVERAGE) / multiplier)
+                        token_amount = round((notional / current_price / LEVERAGE) / multiplier)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
                         continue
 
-                    if contracts * current_price * LEVERAGE * multiplier > free_balance:
+                    if token_amount * current_price * LEVERAGE * multiplier > free_balance:
                         summary.append(f"{symbol} → SKIPPED (low balance)")
                         continue
 
                     side = "buy" if direction == "LONG" else "sell"
-                    exchange.create_market_order(symbol, side, contracts)
+                    exchange.create_market_order(symbol, side, token_amount)
                     POSITION_STATE[symbol]["last_position"] = direction
-                    summary.append(f"{symbol} → {direction} ({contracts} kontrakt) ≈ {notional} USDT")
+                    POSITION_STATE[symbol]["open_time"] = time.time()
+                    summary.append(f"{symbol} → {direction} ({token_amount} kontrakt) ≈ {notional} USDT")
                 elif active_position != "NONE" and contracts > 0:
                     summary.append(f"{symbol} → NO_ACTION (mövqe açıq: {contracts})")
                 else:
