@@ -77,7 +77,7 @@ for symbol in TOKENS:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
 def run_bot():
-    log("🚀 GPT əsaslı sərbəst futures bot başladı")
+    log("🚀 GPT əsaslı Gate.io notional-based bot başladı")
     summary = []
 
     while True:
@@ -133,7 +133,7 @@ def run_bot():
 
                 if "CLOSE" in raw_response and active_position != "NONE":
                     side = "sell" if active_position == "LONG" else "buy"
-                    order = exchange.create_market_order(symbol, side, contracts)
+                    exchange.create_market_order(symbol, side, contracts)
                     POSITION_STATE[symbol]["last_position"] = "NONE"
                     summary.append(f"{symbol} → CLOSE")
                     continue
@@ -142,27 +142,33 @@ def run_bot():
                     direction = "LONG" if "LONG" in raw_response else "SHORT"
                     try:
                         usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
-                        usdt_value = float(usdt_str) / LEVERAGE  # nəzərə alınır
-                        amount = round(usdt_value / current_price, 4)
+                        usdt_value = float(usdt_str)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
                         continue
 
-                    if amount * current_price > free_balance:
-                        summary.append(f"{symbol} → SKIPPED (no funds)")
+                    if usdt_value > free_balance * LEVERAGE:
+                        summary.append(f"{symbol} → SKIPPED (beyond leverage limit)")
                         continue
 
-                    if amount < 0.1:
-                        summary.append(f"{symbol} → SKIPPED (low amount)")
+                    side_code = 1 if direction == "LONG" else 2
+                    contract = symbol.replace("/USDT:USDT", "_USDT")
+
+                    try:
+                        order = exchange.private_linear_post_orders({
+                            "contract": contract,
+                            "size": round(usdt_value, 2),
+                            "price": 0,
+                            "tif": "ioc",
+                            "side": side_code
+                        })
+                        POSITION_STATE[symbol]["last_position"] = direction
+                        summary.append(f"{symbol} → {direction} (notional {usdt_value} USDT)")
+                    except Exception as e:
+                        summary.append(f"{symbol} → XƏTA (notional): {str(e)}")
                         continue
 
-                    side = "buy" if direction == "LONG" else "sell"
-                    order = exchange.create_market_order(symbol, side, amount)
-                    POSITION_STATE[symbol]["last_position"] = direction
-                    summary.append(f"{symbol} → {direction} ({amount} token) ≈ {usdt_value:.2f} USDT margin")
-                    continue
-
-                if active_position != "NONE" and contracts > 0:
+                elif active_position != "NONE" and contracts > 0:
                     summary.append(f"{symbol} → NO_ACTION (mövqe açıq: {contracts})")
                 else:
                     summary.append(f"{symbol} → NO_ACTION")
