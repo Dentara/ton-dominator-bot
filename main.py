@@ -4,7 +4,6 @@ import ccxt
 from datetime import datetime
 from ai.gpt_assistant import ask_gpt
 from ai.ta_engine import compute_ema_rsi
-from utils.trade_executor import execute_trade
 from utils.telegram_notifier import send_telegram_message
 
 DEBUG_MODE = False
@@ -134,7 +133,7 @@ def run_bot():
 
                 if "CLOSE" in raw_response and active_position != "NONE":
                     side = "sell" if active_position == "LONG" else "buy"
-                    order = execute_trade(exchange, symbol, side, contracts)
+                    order = exchange.create_market_order(symbol, side, contracts)
                     POSITION_STATE[symbol]["last_position"] = "NONE"
                     summary.append(f"{symbol} → CLOSE")
                     continue
@@ -158,7 +157,7 @@ def run_bot():
                         continue
 
                     side = "buy" if direction == "LONG" else "sell"
-                    order = execute_trade(exchange, symbol, side, amount)
+                    order = exchange.create_market_order(symbol, side, amount)
                     POSITION_STATE[symbol]["last_position"] = direction
                     summary.append(f"{symbol} → {direction} ({amount} token) ≈ {usdt_value} USDT")
                     continue
