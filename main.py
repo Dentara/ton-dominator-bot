@@ -77,7 +77,7 @@ for symbol in TOKENS:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
 def run_bot():
-    log("🚀 GPT əsaslı Gate.io notional-based bot başladı")
+    log("🚀 GPT əsaslı CCXT stabil versiya başladı")
     summary = []
 
     while True:
@@ -131,43 +131,34 @@ def run_bot():
 
                 raw_response = ask_gpt(gpt_msg).strip().upper()
 
-                if "CLOSE" in raw_response and active_position != "NONE":
-                    side = "sell" if active_position == "LONG" else "buy"
-                    exchange.create_market_order(symbol, side, contracts)
-                    POSITION_STATE[symbol]["last_position"] = "NONE"
-                    summary.append(f"{symbol} → CLOSE")
+                if "CLOSE" in raw_response:
+                    if active_position != "NONE" and contracts > 0:
+                        side = "sell" if active_position == "LONG" else "buy"
+                        exchange.create_market_order(symbol, side, contracts)
+                        POSITION_STATE[symbol]["last_position"] = "NONE"
+                        summary.append(f"{symbol} → CLOSE (contracts={contracts})")
+                    else:
+                        summary.append(f"{symbol} → SKIPPED (mövqe yoxdur)")
                     continue
 
                 if any(d in raw_response for d in ["LONG", "SHORT"]):
                     direction = "LONG" if "LONG" in raw_response else "SHORT"
                     try:
                         usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
-                        usdt_value = float(usdt_str)
+                        notional = float(usdt_str)
+                        token_amount = round((notional / current_price) / LEVERAGE, 4)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
                         continue
 
-                    if usdt_value > free_balance * LEVERAGE:
-                        summary.append(f"{symbol} → SKIPPED (beyond leverage limit)")
+                    if token_amount * current_price * LEVERAGE > free_balance:
+                        summary.append(f"{symbol} → SKIPPED (balance low)")
                         continue
 
-                    side_code = 1 if direction == "LONG" else 2
-                    contract = symbol.replace("/USDT:USDT", "_USDT")
-
-                    try:
-                        order = exchange.private_linear_post_orders({
-                            "contract": contract,
-                            "size": round(usdt_value, 2),
-                            "price": 0,
-                            "tif": "ioc",
-                            "side": side_code
-                        })
-                        POSITION_STATE[symbol]["last_position"] = direction
-                        summary.append(f"{symbol} → {direction} (notional {usdt_value} USDT)")
-                    except Exception as e:
-                        summary.append(f"{symbol} → XƏTA (notional): {str(e)}")
-                        continue
-
+                    side = "buy" if direction == "LONG" else "sell"
+                    exchange.create_market_order(symbol, side, token_amount)
+                    POSITION_STATE[symbol]["last_position"] = direction
+                    summary.append(f"{symbol} → {direction} ({token_amount} token) ≈ {notional} USDT")
                 elif active_position != "NONE" and contracts > 0:
                     summary.append(f"{symbol} → NO_ACTION (mövqe açıq: {contracts})")
                 else:
