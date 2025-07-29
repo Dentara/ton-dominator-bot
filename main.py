@@ -20,15 +20,6 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
-CONTRACT_MULTIPLIERS = {
-    "TON/USDT:USDT": 0.1,
-    "DOGE/USDT:USDT": 0.1,
-    "KAS/USDT:USDT": 100.0,
-    "XRP/USDT:USDT": 10.0,
-    "GT/USDT:USDT": 1.0,
-    "CAKE/USDT:USDT": 0.1
-}
-
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -151,27 +142,25 @@ def run_bot():
                 if any(d in raw_response for d in ["LONG", "SHORT"]):
                     direction = "LONG" if "LONG" in raw_response else "SHORT"
                     try:
-                        amount_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
-                        amount = float(amount_str)
+                        usdt_str = ''.join(filter(lambda x: x.isdigit() or x=='.', raw_response))
+                        usdt_value = float(usdt_str)
+                        amount = round(usdt_value / current_price, 4)
                     except:
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
                         continue
 
-                    contract_multiplier = CONTRACT_MULTIPLIERS.get(symbol, 1.0)
-                    adjusted_amount = round(amount * contract_multiplier, 4)
-
-                    if adjusted_amount * current_price > free_balance:
+                    if amount * current_price > free_balance:
                         summary.append(f"{symbol} → SKIPPED (no funds)")
                         continue
 
-                    if adjusted_amount < 0.1:
+                    if amount < 0.1:
                         summary.append(f"{symbol} → SKIPPED (low amount)")
                         continue
 
                     side = "buy" if direction == "LONG" else "sell"
-                    order = execute_trade(exchange, symbol, side, adjusted_amount)
+                    order = execute_trade(exchange, symbol, side, amount)
                     POSITION_STATE[symbol]["last_position"] = direction
-                    summary.append(f"{symbol} → {direction} ({adjusted_amount})")
+                    summary.append(f"{symbol} → {direction} ({amount} token) ≈ {usdt_value} USDT")
                     continue
 
                 if active_position != "NONE" and contracts > 0:
