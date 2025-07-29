@@ -21,12 +21,12 @@ POSITION_STATE = {}
 DECISION_MEMORY = {}
 
 CONTRACT_MULTIPLIERS = {
-    "TON/USDT:USDT": 10.0,
+    "TON/USDT:USDT": 0.1,
     "DOGE/USDT:USDT": 0.1,
-    "KAS/USDT:USDT": 0.01,
-    "XRP/USDT:USDT": 0.1,
+    "KAS/USDT:USDT": 100.0,
+    "XRP/USDT:USDT": 10.0,
     "GT/USDT:USDT": 1.0,
-    "CAKE/USDT:USDT": 1.0
+    "CAKE/USDT:USDT": 0.1
 }
 
 def notify(msg: str, level: str = "info"):
