@@ -20,7 +20,6 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
-
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -28,11 +27,9 @@ def notify(msg: str, level: str = "info"):
         return
     send_telegram_message(msg)
 
-
 def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
-
 
 def get_trend(symbol, timeframe='1h'):
     try:
@@ -80,9 +77,8 @@ for symbol in TOKENS:
     except Exception as e:
         notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
 
-
 def run_bot():
-    log("🚀 GPT əsaslı çox tokenli futures bot başladı")
+    log("🚀 GPT əsaslı sərbəst futures bot başladı")
     summary = []
 
     while True:
@@ -131,41 +127,39 @@ def run_bot():
                     f"Trend: 1h={trend_1h}, 4h={trend_4h}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
-                    f"Hazırda sən mövqeni artırmaq, azaltmaq, yönü dəyişmək və ya tamamilə bağlamaq qərarını sərbəst şəkildə verə bilərsən.\n"
+                    f"İstifadə olunacaq kapital miqdarını və yönü sən təyin et. Əgər mövqe varsa, onu bağlaya və ya dəyişə bilərsən.\n"
                     f"Yalnız bir cavab ver."
                 )
 
-                raw_response = ask_gpt(gpt_msg)
-                decision_text = raw_response.strip().upper()
+                raw_response = ask_gpt(gpt_msg).strip().upper()
 
-                if decision_text.startswith("CLOSE") and active_position != "NONE":
+                if "CLOSE" in raw_response and active_position != "NONE":
                     side = "sell" if active_position == "LONG" else "buy"
                     order = execute_trade(exchange, symbol, side, contracts)
                     POSITION_STATE[symbol]["last_position"] = "NONE"
                     summary.append(f"{symbol} → CLOSE")
                     continue
 
-                parts = decision_text.split()
-                if len(parts) != 2 or parts[0] not in ["LONG", "SHORT"]:
-                    summary.append(f"{symbol} → NO_ACTION")
+                if any(d in raw_response for d in ["LONG", "SHORT"]):
+                    direction = "LONG" if "LONG" in raw_response else "SHORT"
+                    try:
+                        amount_str = ''.join(filter(str.isdigit, raw_response))
+                        amount = float(amount_str)
+                    except:
+                        summary.append(f"{symbol} → NO_ACTION (amount error)")
+                        continue
+
+                    if amount < 0.1:
+                        summary.append(f"{symbol} → SKIPPED (low amount)")
+                        continue
+
+                    side = "buy" if direction == "LONG" else "sell"
+                    order = execute_trade(exchange, symbol, side, amount)
+                    POSITION_STATE[symbol]["last_position"] = direction
+                    summary.append(f"{symbol} → {direction} ({amount})")
                     continue
 
-                direction, percent_str = parts
-                try:
-                    percent = int(percent_str.replace("%", ""))
-                except:
-                    summary.append(f"{symbol} → NO_ACTION")
-                    continue
-
-                amount = round((free_balance * (percent / 100)) / current_price, 2)
-                if amount < 1:
-                    summary.append(f"{symbol} → SKIPPED (low amount)")
-                    continue
-
-                side = "buy" if direction == "LONG" else "sell"
-                order = execute_trade(exchange, symbol, side, amount)
-                POSITION_STATE[symbol]["last_position"] = direction
-                summary.append(f"{symbol} → {direction} ({percent}%)")
+                summary.append(f"{symbol} → NO_ACTION")
 
             except Exception as e:
                 summary.append(f"{symbol} → XƏTA: {str(e)}")
