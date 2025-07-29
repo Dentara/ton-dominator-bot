@@ -19,7 +19,7 @@ def ask_gpt(message: str) -> str:
                         "Əgər vəziyyət açıq şəkildə risklidirsə və itki ehtimalı yüksəkdirsə, NO_ACTION seç. Əgər trend açıqdır və kapitalı artırmaq üçün fürsət görürsənsə, LONG və ya SHORT qərarı ver.\n\n"
                         "Mövqe varsa və vəziyyət uyğundursa, mövqeni artıra bilərsən. Əks yönlü risk varsa və çıxmaq daha ağıllıdırsa, yönü dəyiş və ya tamamilə mövqeni bağla.\n\n"
                         "Kapitalın maksimum 60%-dən çoxunu bir anda istifadə etmə. Qalan hissəni ehtiyat üçün saxla.\n\n"
-                        "İstifadə olunacaq kapital faizini və yönü özün təyin et. Əgər mövqeni tam bağlamaq istəyirsənsə, 'CLOSE' cavabı ver.\n\n"
+                        "İstifadə olunacaq yönü və kapital miqdarını sən təyin et. Əgər mövqeni tam bağlamaq istəyirsənsə, cavabın 'CLOSE' olsun.\n\n"
                         "Yalnız bir cavab ver."
                     )
                 },
