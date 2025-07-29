@@ -5,22 +5,19 @@ def log(msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now}] {msg}")
 
-def execute_trade(exchange, symbol: str, side: str, notional_usdt: float) -> dict:
+def execute_trade(exchange, symbol: str, side: str, amount: float) -> dict:
     try:
-        contract = symbol.replace("/USDT:USDT", "_USDT")
-        side_code = 1 if side.lower() == "buy" else 2
+        log(f"📤 Əməliyyat: {side.upper()} → {amount} kontrakt on {symbol}")
 
-        log(f"📤 Əməliyyat göndərilir: {side.upper()} → {notional_usdt} USDT notional on {contract}")
+        if side == "buy":
+            order = exchange.create_market_buy_order(symbol, amount)
+        elif side == "sell":
+            order = exchange.create_market_sell_order(symbol, amount)
+        else:
+            log(f"❌ Naməlum əməliyyat növü: {side}")
+            return {}
 
-        order = exchange.private_linear_post_orders({
-            "contract": contract,
-            "size": round(notional_usdt, 2),
-            "price": 0,
-            "tif": "ioc",
-            "side": side_code
-        })
-
-        log(f"✅ Əməliyyat tamamlandı: {side.upper()} {notional_usdt} USDT → {contract}")
+        log(f"✅ Əməliyyat tamamlandı: {side.upper()} {amount} {symbol}")
         return order
 
     except Exception as e:
