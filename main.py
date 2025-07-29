@@ -23,7 +23,7 @@ TOKEN_SIZES = {
     "TON/USDT:USDT": 100,
     "KAS/USDT:USDT": 10,
     "XRP/USDT:USDT": 10,
-    "CAKE/USDT:USDT": 20,
+    "CAKE/USDT:USDT": 200,
     "GT/USDT:USDT": 50,
     "DOGE/USDT:USDT": 50
 }
