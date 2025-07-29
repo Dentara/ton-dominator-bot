@@ -20,6 +20,15 @@ LEVERAGE = 3
 POSITION_STATE = {}
 DECISION_MEMORY = {}
 
+CONTRACT_MULTIPLIERS = {
+    "TON/USDT:USDT": 10.0,
+    "DOGE/USDT:USDT": 0.1,
+    "KAS/USDT:USDT": 0.01,
+    "XRP/USDT:USDT": 0.1,
+    "GT/USDT:USDT": 1.0,
+    "CAKE/USDT:USDT": 1.0
+}
+
 def notify(msg: str, level: str = "info"):
     if level == "debug" and not DEBUG_MODE:
         return
@@ -148,18 +157,21 @@ def run_bot():
                         summary.append(f"{symbol} → NO_ACTION (amount error)")
                         continue
 
-                    if amount * current_price > free_balance:
+                    contract_multiplier = CONTRACT_MULTIPLIERS.get(symbol, 1.0)
+                    adjusted_amount = round(amount * contract_multiplier, 4)
+
+                    if adjusted_amount * current_price > free_balance:
                         summary.append(f"{symbol} → SKIPPED (no funds)")
                         continue
 
-                    if amount < 0.1:
+                    if adjusted_amount < 0.1:
                         summary.append(f"{symbol} → SKIPPED (low amount)")
                         continue
 
                     side = "buy" if direction == "LONG" else "sell"
-                    order = execute_trade(exchange, symbol, side, amount)
+                    order = execute_trade(exchange, symbol, side, adjusted_amount)
                     POSITION_STATE[symbol]["last_position"] = direction
-                    summary.append(f"{symbol} → {direction} ({amount})")
+                    summary.append(f"{symbol} → {direction} ({adjusted_amount})")
                     continue
 
                 if active_position != "NONE" and contracts > 0:
