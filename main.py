@@ -19,11 +19,11 @@ LEVERAGE = 3
 POSITION_STATE = {}
 
 TOKEN_SIZES = {
-    "TON/USDT:USDT": 700,
-    "KAS/USDT:USDT": 10,
+    "TON/USDT:USDT": 100,
+    "KAS/USDT:USDT": 20,
     "XRP/USDT:USDT": 10,
-    "CAKE/USDT:USDT": 200,
-    "DOGE/USDT:USDT": 50
+    "CAKE/USDT:USDT": 500,
+    "DOGE/USDT:USDT": 80
 }
 
 def notify(msg: str, level: str = "info"):
