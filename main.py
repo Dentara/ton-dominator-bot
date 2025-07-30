@@ -114,8 +114,6 @@ def run_bot():
                         if side:
                             active_position = side.upper()
 
-                trend_1m = get_trend(symbol, '1m')
-                trend_5m = get_trend(symbol, '5m')
                 trend_1h = get_trend(symbol, '1h')
                 trend_4h = get_trend(symbol, '4h')
 
@@ -131,7 +129,7 @@ def run_bot():
                     f"Token: {symbol}\n"
                     f"Balans: {free_balance:.2f} USDT\n"
                     f"Mövqe: {active_position}, Kontraktlar: {contracts}, PnL: {pnl:.2f} USDT\n"
-                    f"Trend: 1m={trend_1m}, 5m={trend_5m}, 1h={trend_1h}, 4h={trend_4h}\n"
+                    f"Trend: 1h={trend_1h}, 4h={trend_4h}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
                     f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
@@ -150,7 +148,8 @@ def run_bot():
                     continue
 
                 side = "buy" if decision_text == "LONG" else "sell"
-                order = execute_trade(exchange, symbol, side, amount)
+                contract_symbol = symbol.replace("/USDT:USDT", "/USDT")  # 🔧 DÜZƏLDİLDİ
+                order = execute_trade(exchange, contract_symbol, side, amount)
                 POSITION_STATE[symbol]["last_position"] = decision_text
                 summary.append(f"{symbol} → {decision_text} ({amount})")
 
