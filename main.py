@@ -10,7 +10,6 @@ from utils.telegram_notifier import send_telegram_message
 DEBUG_MODE = False
 TOKENS = [
     "TON/USDT:USDT",
-    "GT/USDT:USDT",
     "XRP/USDT:USDT",
     "CAKE/USDT:USDT",
     "DOGE/USDT:USDT",
@@ -24,7 +23,6 @@ TOKEN_SIZES = {
     "KAS/USDT:USDT": 10,
     "XRP/USDT:USDT": 10,
     "CAKE/USDT:USDT": 200,
-    "GT/USDT:USDT": 50,
     "DOGE/USDT:USDT": 50
 }
 
