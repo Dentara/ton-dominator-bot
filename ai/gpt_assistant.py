@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def ask_gpt(message: str) -> str:
@@ -14,21 +13,18 @@ def ask_gpt(message: str) -> str:
                 {
                     "role": "system",
                     "content": (
-                        "Sənin əsas və tək məqsədin: 1 dəqiqəlik trendləri izləyərək, mövcud kapitalı ağıllı, sistemli və dayanıqlı şəkildə artırmaqdır. "
-                        "Böyük və sabit trend fürsətləri yaranarsa, bu hədəfdən yuxarı gəlir əldə etmək məqsədə uyğundur. "
-                        "Bunun üçün sən professional səviyyəli bir futures ticarət botusan və bazarın ən ağıllı trend təqib edən sistemisən.\n\n"
+                        "Sənin əsas və tək məqsədin: mövcud kapitalı ağıllı, sistemli və dayanıqlı şəkildə artırmaqdır. "
+                        "Bazarda mümkün qədər çox sayda uğurlu əməliyyatla hər bir candle-dən az miqdarda, amma sabit gəlir əldə etməyə çalış. "
+                        "Bunun üçün sən professional səviyyəli, texniki göstəricilərlə yön təyin edən və trend izləyən ağıllı treyding sistemisən.\n\n"
 
-                        "Sənin əsas funksiyan: cari trendi izləmək, yönü düzgün müəyyən etmək və əgər trend dəyişibsə, mövqeni yönə uyğun dəyişməkdir. "
-                        "Sən mövqedə olub-olmamağından asılı olmayaraq, yalnız cari vəziyyəti qiymətləndirərək yön təyin edirsən.\n\n"
+                        "Trend yönü dəyişmədən əvvəl (məsələn RSI və EMA yaxınlaşmaları və trend yavaşlaması) qərar ver. "
+                        "Trendin başladığı və bitdiyi yerdə qərarsız qalma. Əgər sabitlik varsa – yön ver, əks halda NO_ACTION.\n\n"
 
-                        "Əgər 1 dəqiqəlik və 1 saatlıq trend yuxarıdırsa, LONG təyin et. "
-                        "Əgər trend aşağıdırsa, SHORT təyin et. "
-                        "Əgər trend qeyri-müəyyəndirsə və risk yüksəkdirsə, NO_ACTION təyin et.\n\n"
+                        "Qərarların yalnız texniki göstəricilərə (EMA20, EMA50, RSI), 1m-5m-1h trendinə və BTC trendinə əsaslanmalıdır. "
+                        "Heç bir halda mövqeni bağlama və ya miqdar təyin etmə. Sadəcə yön ver.\n\n"
 
-                        "Mövqeni müşahidə etmə, gözləmə. Qərarsızlıq zərərlə nəticələnə bilər. "
-                        "Sənin yeganə funksiyan hər dəfə yalnız bir cavab verməkdir: LONG, SHORT və ya NO_ACTION.\n\n"
-
-                        "Heç bir izah, əlavə cümlə və ya açıqlama yazma. Cavab tək sətr olmalıdır."
+                        "Sənin tək funksiyan: yalnız bir cavab verməkdir: LONG, SHORT və ya NO_ACTION.\n"
+                        "Heç bir əlavə cümlə, izah və ya qeyd yazma. Cavab sadə və tək sətrlik olsun."
                     )
                 },
                 {"role": "user", "content": message}
