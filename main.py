@@ -1,4 +1,4 @@
-# TON Dominator GPT Bot (Gecikmə azaldılmış versiya)
+# TON Dominator GPT Bot (MACD və trend sonlanması ilə gücləndirilmiş versiya)
 import os
 import time
 import numpy as np
@@ -97,6 +97,10 @@ def run_bot():
                 spike = indicators.get("SPIKE")
                 pattern_long = indicators.get("BULLISH_ENGULFING")
                 pattern_short = indicators.get("BEARISH_ENGULFING")
+                rsi_prev = indicators.get("RSI_PREV")
+                macd = indicators.get("MACD")
+                signal = indicators.get("MACD_SIGNAL")
+                hist = indicators.get("MACD_HIST")
 
                 trend_1h = get_trend(symbol, '1h')
                 trend_4h = get_trend(symbol, '4h')
@@ -122,24 +126,36 @@ def run_bot():
                     f"Mövqe: {active_position}, Kontraktlar: {contracts}, PnL: {pnl:.2f} USDT\n"
                     f"Trend: 1h={trend_1h}, 4h={trend_4h}, 5m={trend_5m}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
+                    f"MACD={macd}, SIGNAL={signal}, HIST={hist}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
                     f"Slope={slope}, Spike={spike}, Pattern: Bullish={pattern_long}, Bearish={pattern_short}\n"
                     f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
                 )
 
                 decision_text = ask_gpt(gpt_msg).strip().upper()
+                if decision_text not in {"LONG", "SHORT", "NO_ACTION"}:
+                    summary.append(f"{symbol} → GPT XƏTASI: qərar tanınmadı → {decision_text}")
+                    continue
 
                 if isinstance(ema20, (int, float)) and isinstance(ema50, (int, float)) and isinstance(rsi, (int, float)):
                     if abs(ema20 - ema50) / ema50 * 100 < 0.05 or (48 <= rsi <= 52):
                         summary.append(f"{symbol} → NO_ACTION (weak trend)")
                         continue
 
-                if (decision_text == "LONG" and trend_5m != "up") or (decision_text == "SHORT" and trend_5m != "down"):
-                    summary.append(f"{symbol} → NO_ACTION (5m uyğunsuz)")
+                if decision_text == "LONG" and rsi_prev and rsi < rsi_prev and ema20 > ema50 and (ema20 - ema50) < 0.1:
+                    summary.append(f"{symbol} → NO_ACTION (trend bitir) [bearish RSI divergence + EMA converge]")
                     continue
 
-                if decision_text not in ["LONG", "SHORT"]:
-                    summary.append(f"{symbol} → NO_ACTION")
+                if decision_text == "SHORT" and rsi_prev and rsi > rsi_prev and ema20 < ema50 and (ema50 - ema20) < 0.1:
+                    summary.append(f"{symbol} → NO_ACTION (trend bitir) [bullish RSI divergence + EMA converge]")
+                    continue
+
+                if hist is not None and abs(hist) < 0.05:
+                    summary.append(f"{symbol} → NO_ACTION (MACD zəif histogram)")
+                    continue
+
+                if (decision_text == "LONG" and trend_5m != "up") or (decision_text == "SHORT" and trend_5m != "down"):
+                    summary.append(f"{symbol} → NO_ACTION (5m uyğunsuz)")
                     continue
 
                 amount = TOKEN_SIZES.get(symbol, 0)
