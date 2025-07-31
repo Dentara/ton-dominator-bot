@@ -148,7 +148,7 @@ def run_bot():
                     continue
 
                 side = "buy" if decision_text == "LONG" else "sell"
-                contract_symbol = symbol.replace("/USDT:USDT", "/USDT")  # 🔧 DÜZƏLDİLDİ
+                contract_symbol = symbol.replace("/USDT:USDT", "_USDT")  # 🔧 DÜZƏLDİLDİ
                 order = execute_trade(exchange, contract_symbol, side, amount)
                 POSITION_STATE[symbol]["last_position"] = decision_text
                 summary.append(f"{symbol} → {decision_text} ({amount})")
