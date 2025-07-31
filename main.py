@@ -1,3 +1,4 @@
+# TON Dominator GPT Bot (Gecikmə azaldılmış versiya)
 import os
 import time
 import numpy as np
@@ -10,20 +11,13 @@ from utils.telegram_notifier import send_telegram_message
 
 DEBUG_MODE = False
 TOKENS = [
-    "TON/USDT:USDT",
-    "XRP/USDT:USDT",
-    "CAKE/USDT:USDT",
-    "DOGE/USDT:USDT",
-    "KAS/USDT:USDT"
+    "TON/USDT:USDT", "XRP/USDT:USDT", "CAKE/USDT:USDT", "DOGE/USDT:USDT", "KAS/USDT:USDT"
 ]
 LEVERAGE = 3
 POSITION_STATE = {}
 TOKEN_SIZES = {
-    "TON/USDT:USDT": 1000,
-    "KAS/USDT:USDT": 40,
-    "XRP/USDT:USDT": 10,
-    "CAKE/USDT:USDT": 500,
-    "DOGE/USDT:USDT": 80
+    "TON/USDT:USDT": 1000, "KAS/USDT:USDT": 40,
+    "XRP/USDT:USDT": 10, "CAKE/USDT:USDT": 500, "DOGE/USDT:USDT": 80
 }
 
 def log(msg):
@@ -41,25 +35,10 @@ def get_trend(symbol, timeframe='1h'):
     try:
         candles = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=30)
         closes = [x[4] for x in candles]
-        if closes[-1] > closes[-2] > closes[-3]:
-            return "up"
-        elif closes[-1] < closes[-2] < closes[-3]:
-            return "down"
-        else:
-            return "sideways"
-    except:
-        return "unknown"
-
-def calculate_metrics(ohlcv):
-    closes = [x[4] for x in ohlcv]
-    if len(closes) < 6:
-        return 0, 0, 0
-    price_change_pct = (closes[-1] - closes[-6]) / closes[-6] * 100
-    volatility = np.std(closes[-6:])
-    ema20 = np.mean(closes[-20:]) if len(closes) >= 20 else np.mean(closes)
-    ema50 = np.mean(closes[-50:]) if len(closes) >= 50 else np.mean(closes)
-    ema_diff_pct = abs(ema20 - ema50) / ema50 * 100 if ema50 else 0
-    return round(price_change_pct, 2), round(volatility, 4), round(ema_diff_pct, 2)
+        if closes[-1] > closes[-2] > closes[-3]: return "up"
+        elif closes[-1] < closes[-2] < closes[-3]: return "down"
+        else: return "sideways"
+    except: return "unknown"
 
 log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
 
@@ -102,19 +81,33 @@ def run_bot():
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=50)
                 last_candle = ohlcv[-1]
                 candle_time = last_candle[0]
-
                 if candle_time == last_time:
                     continue
                 POSITION_STATE[symbol]["last_candle_time"] = candle_time
 
-                closes = [x[4] for x in ohlcv]
+                indicators = compute_ema_rsi(ohlcv)
+                if not indicators:
+                    summary.append(f"{symbol} → NO_ACTION (yetersiz data)")
+                    continue
+
+                ema20 = indicators.get("EMA20")
+                ema50 = indicators.get("EMA50")
+                rsi = indicators.get("RSI")
+                slope = indicators.get("EMA_SLOPE")
+                spike = indicators.get("SPIKE")
+                pattern_long = indicators.get("BULLISH_ENGULFING")
+                pattern_short = indicators.get("BEARISH_ENGULFING")
+
+                trend_1h = get_trend(symbol, '1h')
+                trend_4h = get_trend(symbol, '4h')
+                trend_5m = get_trend(symbol, '5m')
+                btc_trend_1h = get_trend("BTC/USDT:USDT", '1h')
+                btc_trend_4h = get_trend("BTC/USDT:USDT", '4h')
+
                 balance_info = exchange.fetch_balance({"type": "swap"})
                 free_balance = balance_info['free'].get('USDT', 0) or 0
                 positions = exchange.fetch_positions()
-                active_position = "NONE"
-                contracts = 0
-                pnl = 0
-
+                active_position, contracts, pnl = "NONE", 0, 0
                 for pos in positions:
                     if pos.get("symbol") == symbol:
                         contracts = float(pos.get("contracts") or 0)
@@ -123,19 +116,6 @@ def run_bot():
                         if side:
                             active_position = side.upper()
 
-                indicators = compute_ema_rsi(ohlcv)
-                ema20 = indicators.get("EMA20", "?")
-                ema50 = indicators.get("EMA50", "?")
-                rsi = indicators.get("RSI", "?")
-
-                trend_1h = get_trend(symbol, '1h')
-                trend_4h = get_trend(symbol, '4h')
-                trend_5m = get_trend(symbol, '5m')
-                btc_trend_1h = get_trend("BTC/USDT:USDT", '1h')
-                btc_trend_4h = get_trend("BTC/USDT:USDT", '4h')
-
-                price_change, volatility, ema_spread = calculate_metrics(ohlcv)
-
                 gpt_msg = (
                     f"Token: {symbol}\n"
                     f"Balans: {free_balance:.2f} USDT\n"
@@ -143,15 +123,14 @@ def run_bot():
                     f"Trend: 1h={trend_1h}, 4h={trend_4h}, 5m={trend_5m}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
-                    f"Price Change 5m: {price_change}%, Volatility: {volatility}, EMA Spread: {ema_spread}%\n"
+                    f"Slope={slope}, Spike={spike}, Pattern: Bullish={pattern_long}, Bearish={pattern_short}\n"
                     f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
                 )
 
-                raw_response = ask_gpt(gpt_msg)
-                decision_text = raw_response.strip().upper()
+                decision_text = ask_gpt(gpt_msg).strip().upper()
 
                 if isinstance(ema20, (int, float)) and isinstance(ema50, (int, float)) and isinstance(rsi, (int, float)):
-                    if ema_spread < 0.05 or (48 <= rsi <= 52):
+                    if abs(ema20 - ema50) / ema50 * 100 < 0.05 or (48 <= rsi <= 52):
                         summary.append(f"{symbol} → NO_ACTION (weak trend)")
                         continue
 
