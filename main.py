@@ -1,4 +1,4 @@
-# TON Dominator GPT Bot (Ağıllılaşdırılmış filtrlər və breakout təqibi ilə)
+# TON Dominator GPT Bot (Breakout-lar üçün ağıllı MACD override ilə)
 import os
 import time
 import numpy as np
@@ -138,13 +138,12 @@ def run_bot():
                     summary.append(f"{symbol} → GPT XƏTASI: qərar tanınmadı → {decision_text}")
                     continue
 
-                # Ağıllı MACD filtresi: zəif histogram ancaq pattern və spike yoxdursa blokla
+                # Yeni ağıllı MACD filtri: sadəcə zəif histogram varsa, amma impuls yoxdursa blokla
                 if hist is not None and abs(hist) < 0.05:
-                    if not spike and not pattern_long:
-                        summary.append(f"{symbol} → NO_ACTION (MACD zəif histogram, impuls yoxdur)")
+                    if not spike and not pattern_long and slope < 0.03:
+                        summary.append(f"{symbol} → NO_ACTION (MACD zəif + impuls da zəifdir)")
                         continue
 
-                # Trend bitir — zəifləmə yalnız birdən çox şərt ödənəndə blokla
                 if decision_text == "LONG" and rsi_prev and rsi < rsi_prev and ema_spread < 0.05 and hist < 0.03:
                     summary.append(f"{symbol} → NO_ACTION (trend bitir, zəif siqnallar)")
                     continue
@@ -153,12 +152,10 @@ def run_bot():
                     summary.append(f"{symbol} → NO_ACTION (trend bitir, zəif düşüş)")
                     continue
 
-                # Zəif trendin bloklanması (baza filtresi)
                 if ema_spread < 0.03 and (48 <= rsi <= 52):
                     summary.append(f"{symbol} → NO_ACTION (weak trend)")
                     continue
 
-                # 5 dəqiqəlik trend uyğunluğu yoxlanılır
                 if (decision_text == "LONG" and trend_5m != "up") or (decision_text == "SHORT" and trend_5m != "down"):
                     summary.append(f"{symbol} → NO_ACTION (5m uyğunsuz)")
                     continue
