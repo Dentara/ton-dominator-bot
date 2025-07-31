@@ -50,37 +50,16 @@ def get_trend(symbol, timeframe='1h'):
     except:
         return "unknown"
 
-log("🟢 TON DOMINATOR GPT BOT BAŞLADI")
-
-api_key = os.getenv("GATE_API_KEY")
-api_secret = os.getenv("GATE_API_SECRET")
-
-if not api_key or not api_secret:
-    log("❌ API açarları tapılmadı!")
-    send_telegram_message("❌ API açarları tapılmadı!")
-    exit(1)
-
-try:
-    exchange = ccxt.gate({
-        'apiKey': api_key,
-        'secret': api_secret,
-        'enableRateLimit': True,
-        'options': {'defaultType': 'swap'}
-    })
-    log("✅ Exchange bağlantısı quruldu")
-except Exception as e:
-    msg = f"❌ Exchange bağlantı xətası: {e}"
-    log(msg)
-    send_telegram_message(msg)
-    exit(1)
-
-for symbol in TOKENS:
-    try:
-        exchange.set_leverage(LEVERAGE, symbol)
-        POSITION_STATE[symbol] = {"last_candle_time": None, "last_position": "NONE"}
-        log(f"⚙️ Leverage təyin olundu: {LEVERAGE}x → {symbol}")
-    except Exception as e:
-        notify(f"❌ Leverage təyini uğursuz: {symbol} | {e}")
+def calculate_metrics(ohlcv):
+    closes = [x[4] for x in ohlcv]
+    if len(closes) < 6:
+        return 0, 0, 0
+    price_change_pct = (closes[-1] - closes[-6]) / closes[-6] * 100
+    volatility = np.std(closes[-6:])
+    ema20 = np.mean(closes[-20:]) if len(closes) >= 20 else np.mean(closes)
+    ema50 = np.mean(closes[-50:]) if len(closes) >= 50 else np.mean(closes)
+    ema_diff_pct = abs(ema20 - ema50) / ema50 * 100 if ema50 else 0
+    return round(price_change_pct, 2), round(volatility, 4), round(ema_diff_pct, 2)
 
 def run_bot():
     log("🚀 GPT əsaslı sabit miqdarlı futures bot başladı")
@@ -114,29 +93,45 @@ def run_bot():
                         if side:
                             active_position = side.upper()
 
-                trend_1h = get_trend(symbol, '1h')
-                trend_4h = get_trend(symbol, '4h')
-
+                # Texniki analiz və trendlər
                 indicators = compute_ema_rsi(ohlcv)
                 ema20 = indicators.get("EMA20") if indicators else "?"
                 ema50 = indicators.get("EMA50") if indicators else "?"
                 rsi = indicators.get("RSI") if indicators else "?"
 
+                trend_1h = get_trend(symbol, '1h')
+                trend_4h = get_trend(symbol, '4h')
+                trend_5m = get_trend(symbol, '5m')
                 btc_trend_1h = get_trend("BTC/USDT:USDT", '1h')
                 btc_trend_4h = get_trend("BTC/USDT:USDT", '4h')
 
+                price_change, volatility, ema_spread = calculate_metrics(ohlcv)
+
+                # GPT mesajı
                 gpt_msg = (
                     f"Token: {symbol}\n"
                     f"Balans: {free_balance:.2f} USDT\n"
                     f"Mövqe: {active_position}, Kontraktlar: {contracts}, PnL: {pnl:.2f} USDT\n"
-                    f"Trend: 1h={trend_1h}, 4h={trend_4h}\n"
+                    f"Trend: 1h={trend_1h}, 4h={trend_4h}, 5m={trend_5m}\n"
                     f"EMA20={ema20}, EMA50={ema50}, RSI={rsi}\n"
                     f"BTC Trend: 1h={btc_trend_1h}, 4h={btc_trend_4h}\n"
+                    f"Price Change 5m: {price_change}%, Volatility: {volatility}, EMA Spread: {ema_spread}%\n"
                     f"Yalnız bir cavab ver: LONG, SHORT və ya NO_ACTION"
                 )
 
                 raw_response = ask_gpt(gpt_msg)
                 decision_text = raw_response.strip().upper()
+
+                # Zəif trend filtri
+                if isinstance(ema20, (int, float)) and isinstance(ema50, (int, float)) and isinstance(rsi, (int, float)):
+                    if ema_spread < 0.05 or (48 <= rsi <= 52):
+                        summary.append(f"{symbol} → NO_ACTION (weak trend)")
+                        continue
+
+                # 5 dəqiqəlik trend uyğunluğu
+                if (decision_text == "LONG" and trend_5m != "up") or (decision_text == "SHORT" and trend_5m != "down"):
+                    summary.append(f"{symbol} → NO_ACTION (5m uyğunsuz)")
+                    continue
 
                 if decision_text not in ["LONG", "SHORT"]:
                     summary.append(f"{symbol} → NO_ACTION")
@@ -148,7 +143,7 @@ def run_bot():
                     continue
 
                 side = "buy" if decision_text == "LONG" else "sell"
-                contract_symbol = symbol.replace("/USDT:USDT", "_USDT")  # 🔧 DÜZƏLDİLDİ
+                contract_symbol = symbol.replace("/USDT:USDT", "_USDT")
                 order = execute_trade(exchange, contract_symbol, side, amount)
                 POSITION_STATE[symbol]["last_position"] = decision_text
                 summary.append(f"{symbol} → {decision_text} ({amount})")
@@ -161,5 +156,3 @@ def run_bot():
             summary.clear()
 
         time.sleep(5)
-
-run_bot()
