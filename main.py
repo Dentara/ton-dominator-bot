@@ -1,4 +1,4 @@
-# TON Dominator GPT Bot (MACD və trend sonlanması ilə gücləndirilmiş versiya)
+# TON Dominator GPT Bot (Ağıllılaşdırılmış filtrlər və breakout təqibi ilə)
 import os
 import time
 import numpy as np
@@ -93,14 +93,15 @@ def run_bot():
                 ema20 = indicators.get("EMA20")
                 ema50 = indicators.get("EMA50")
                 rsi = indicators.get("RSI")
+                rsi_prev = indicators.get("RSI_PREV")
                 slope = indicators.get("EMA_SLOPE")
                 spike = indicators.get("SPIKE")
                 pattern_long = indicators.get("BULLISH_ENGULFING")
                 pattern_short = indicators.get("BEARISH_ENGULFING")
-                rsi_prev = indicators.get("RSI_PREV")
                 macd = indicators.get("MACD")
                 signal = indicators.get("MACD_SIGNAL")
                 hist = indicators.get("MACD_HIST")
+                ema_spread = abs(ema20 - ema50) / ema50 * 100 if ema50 else 0
 
                 trend_1h = get_trend(symbol, '1h')
                 trend_4h = get_trend(symbol, '4h')
@@ -137,23 +138,27 @@ def run_bot():
                     summary.append(f"{symbol} → GPT XƏTASI: qərar tanınmadı → {decision_text}")
                     continue
 
-                if isinstance(ema20, (int, float)) and isinstance(ema50, (int, float)) and isinstance(rsi, (int, float)):
-                    if abs(ema20 - ema50) / ema50 * 100 < 0.05 or (48 <= rsi <= 52):
-                        summary.append(f"{symbol} → NO_ACTION (weak trend)")
+                # Ağıllı MACD filtresi: zəif histogram ancaq pattern və spike yoxdursa blokla
+                if hist is not None and abs(hist) < 0.05:
+                    if not spike and not pattern_long:
+                        summary.append(f"{symbol} → NO_ACTION (MACD zəif histogram, impuls yoxdur)")
                         continue
 
-                if decision_text == "LONG" and rsi_prev and rsi < rsi_prev and ema20 > ema50 and (ema20 - ema50) < 0.1:
-                    summary.append(f"{symbol} → NO_ACTION (trend bitir) [bearish RSI divergence + EMA converge]")
+                # Trend bitir — zəifləmə yalnız birdən çox şərt ödənəndə blokla
+                if decision_text == "LONG" and rsi_prev and rsi < rsi_prev and ema_spread < 0.05 and hist < 0.03:
+                    summary.append(f"{symbol} → NO_ACTION (trend bitir, zəif siqnallar)")
                     continue
 
-                if decision_text == "SHORT" and rsi_prev and rsi > rsi_prev and ema20 < ema50 and (ema50 - ema20) < 0.1:
-                    summary.append(f"{symbol} → NO_ACTION (trend bitir) [bullish RSI divergence + EMA converge]")
+                if decision_text == "SHORT" and rsi_prev and rsi > rsi_prev and ema_spread < 0.05 and hist < 0.03:
+                    summary.append(f"{symbol} → NO_ACTION (trend bitir, zəif düşüş)")
                     continue
 
-                if hist is not None and abs(hist) < 0.05:
-                    summary.append(f"{symbol} → NO_ACTION (MACD zəif histogram)")
+                # Zəif trendin bloklanması (baza filtresi)
+                if ema_spread < 0.03 and (48 <= rsi <= 52):
+                    summary.append(f"{symbol} → NO_ACTION (weak trend)")
                     continue
 
+                # 5 dəqiqəlik trend uyğunluğu yoxlanılır
                 if (decision_text == "LONG" and trend_5m != "up") or (decision_text == "SHORT" and trend_5m != "down"):
                     summary.append(f"{symbol} → NO_ACTION (5m uyğunsuz)")
                     continue
